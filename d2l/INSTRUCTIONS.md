@@ -69,7 +69,7 @@ You STOP after finishing the requested section.
 
 ### 1. NO SKIPPED DEFINITIONS
 Every concept MUST be defined BEFORE it is used.
-If a concept appears (e.g., 閳ユ竼poch閳? 閳ユ競atch閳? 閳ユ笀radient閳? 閳ユ笝ptimizer閳?, you must:
+If a concept appears (e.g., epoch? gradient? optimizer閳?, you must:
 - define it first in plain English
 - give a tiny example
 - show why it exists
@@ -110,9 +110,9 @@ Only now connect to PyTorch / D2L abstractions.
 ### 4. NO JUMPING TO HIGH ABSTRACTION TOO EARLY
 
 You MUST NOT jump directly from:
-- concept 閳?PyTorch
-- concept 閳?D2L module
-- concept 閳?Trainer / Module / fit loop
+- PyTorch
+- D2L module
+- Trainer / Module / fit loop
 
 Framework code is ONLY allowed after:
 - manual implementation exists
@@ -139,7 +139,7 @@ Constraints:
 
 ---
 
-### 7. NEVER SAY 閳ユ翻HIS WILL BE COVERED LATER閳?WITHOUT EXPLANATION
+### 7. NEVER SAY THIS WILL BE COVERED LATER WITHOUT EXPLANATION
 
 Instead:
 - explain it immediately in simple terms
@@ -206,7 +206,7 @@ The suffix numbers are relevant (e.g. 2.1.1) since they are chaptere indices, bu
 2.3.7 Non-Reduction Sum 47
 2.3.8 Dot Products 48
 2.3.9 Matrix閳ユ彜ector Products 48
-2.3.10 Matrix閳ユ彈atrix Multiplication 49
+2.3.10 Matrix Multiplication 49
 2.3.11 Norms 50
 2.3.12 Discussion 52
 2.3.13 Exercises 53
@@ -375,13 +375,13 @@ The suffix numbers are relevant (e.g. 2.1.1) since they are chaptere indices, bu
 5.7.3 Accessing and Reading the Dataset 201
 5.7.4 Data Preprocessing 201
 5.7.5 Error Measure 203
-5.7.6 楗炬儱-Fold Cross-Validation 204
+5.7.6 K-Fold Cross-Validation 204
 5.7.7 Model Selection 204
 5.7.8 Submitting Predictions on Kaggle 205
 5.7.9 Summary and Discussion 206
 5.7.10 Exercises 206
 
-6 Builders閳?Guide 207
+6 Builders's Guide 207
 6.1 Layers and Modules 207
 6.1.1 A Custom Module 209
 6.1.2 The Sequential Module 211
@@ -441,7 +441,7 @@ The suffix numbers are relevant (e.g. 2.1.1) since they are chaptere indices, bu
 7.4 Multiple Input and Multiple Output Channels 252
 7.4.1 Multiple Input Channels 252
 7.4.2 Multiple Output Channels 253
-7.4.3 1 鑴?1 Convolutional Layer 255
+7.4.3 1x1 Convolutional Layer 255
 7.4.4 Discussion 256
 7.4.5 Exercises 256
 7.5 Pooling 257
@@ -602,7 +602,7 @@ The suffix numbers are relevant (e.g. 2.1.1) since they are chaptere indices, bu
 10.7.1 Teacher Forcing 397
 10.7.2 Encoder 397
 10.7.3 Decoder 399
-10.7.4 Encoder閳ユ弴ecoder for Sequence-to-Sequence Learning 400
+10.7.4 Encoder-Decoder for Sequence-to-Sequence Learning 400
 10.7.5 Loss Function with Masking 401
 10.7.6 Training 401
 10.7.7 Prediction 402
@@ -1111,7 +1111,6 @@ The suffix numbers are relevant (e.g. 2.1.1) since they are chaptere indices, bu
 
 - No academic tone dumping
 - No vague explanations
-- No 閳ユ笅t is obvious that閳ワ腹鈧?
 - No skipping intermediate reasoning steps
 - Prefer clarity over elegance
 - Prefer repetition if needed for understanding
@@ -1215,7 +1214,7 @@ By the end of this curriculum, the learner should:
 - fully understand how PyTorch-style training loops work
 - be able to implement a training loop from scratch
 - understand why frameworks like D2L exist
-- NOT feel that ML code is 閳ユ笗agic閳?
+- NOT feel that ML code is magic
 - be able to read research code without confusion
 - be able to understand and iterate/reproduce, at a basic level 1) a classic ML system (e.g. feature engineering), 2) a deep learing system (e.g. CNN), 3) an NLP (e.g. embeddings, simillartity search)
 
