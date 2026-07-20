@@ -50,6 +50,7 @@ Suggested files:
 
 ```text
 project_0_sparse_linear_experts/
+    .venv/
     data.py
     models.py
     router.py
@@ -57,6 +58,477 @@ project_0_sparse_linear_experts/
     metrics.py
     experiments.ipynb
     notes.md
+```
+
+Important:
+
+Do not type every code block into one file.
+
+Use this rule:
+
+- reusable functions and classes go into `.py` files
+- experiment runs go into `experiments.ipynb` or small `run_phase_XX.py` scripts
+- explanations, hypotheses, and results go into `notes.md`
+
+## 1.1 Prerequisite Libraries and Virtual Environment
+
+This project only needs a small Python environment.
+
+Required:
+
+- Python 3.10 or newer
+- PyTorch
+
+Recommended:
+
+- Jupyter or VS Code notebooks
+- `ipykernel` so the notebook can use the project venv
+- `matplotlib` for optional plots
+
+Not required:
+
+- scikit-learn
+- pandas
+- torchvision
+- CUDA
+- GPU
+- D2L package
+
+PyTorch's official install page currently says latest stable PyTorch requires Python 3.10 or later. Python's official `venv` docs recommend `python -m venv` for creating virtual environments.
+
+### Option A: WSL / Bash Setup
+
+Use this if you are working from the same Linux-style path Codex sees.
+
+```bash
+cd /mnt/c/Users/zihui/self-learn-codes
+mkdir -p project_0_sparse_linear_experts
+cd project_0_sparse_linear_experts
+```
+
+Create the virtual environment:
+
+```bash
+python3 -m venv .venv
+```
+
+Activate it:
+
+```bash
+source .venv/bin/activate
+```
+
+Upgrade pip:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+Install libraries:
+
+```bash
+python -m pip install torch matplotlib jupyter ipykernel
+```
+
+Register a notebook kernel:
+
+```bash
+python -m ipykernel install --user --name project0-sparse-experts --display-name "Project 0 Sparse Experts"
+```
+
+Verify:
+
+```bash
+python -c "import torch; print(torch.__version__); print(torch.rand(2, 3)); print('cuda', torch.cuda.is_available())"
+```
+
+### Option B: Windows PowerShell Setup
+
+Use this if you want to work from native Windows Python.
+
+```powershell
+cd C:\Users\zihui\self-learn-codes
+mkdir project_0_sparse_linear_experts
+cd project_0_sparse_linear_experts
+```
+
+Create the virtual environment:
+
+```powershell
+py -m venv .venv
+```
+
+Activate it:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks activation, you can avoid changing execution policy by calling the venv Python directly:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install torch matplotlib jupyter ipykernel
+```
+
+If activation works, install normally:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install torch matplotlib jupyter ipykernel
+```
+
+Register a notebook kernel:
+
+```powershell
+python -m ipykernel install --user --name project0-sparse-experts --display-name "Project 0 Sparse Experts"
+```
+
+Verify:
+
+```powershell
+python -c "import torch; print(torch.__version__); print(torch.rand(2, 3)); print('cuda', torch.cuda.is_available())"
+```
+
+### Mechanical Setup Notes
+
+Pick one environment for the project and stay inside it.
+
+If you install PyTorch in WSL but run the notebook with Windows Python, the notebook will still say `ModuleNotFoundError: No module named 'torch'`.
+
+If you install PyTorch in Windows PowerShell but run scripts from WSL, WSL will not see the Windows venv.
+
+For this project, CPU PyTorch is enough. If the generic `pip install torch` command fails, use the official PyTorch install selector for your OS and compute platform:
+
+```text
+https://pytorch.org/get-started/locally/
+```
+
+Check which Python your terminal is using:
+
+```bash
+python -c "import sys; print(sys.executable)"
+```
+
+Check whether a notebook is using the right kernel:
+
+```python
+import sys
+print(sys.executable)
+```
+
+Expected idea:
+
+```text
+the printed path should include project_0_sparse_linear_experts/.venv
+```
+
+## 1.2 Exact File Typing Map
+
+Type reusable code into the project files according to this map.
+
+```text
+data.py
+    make_regression_data
+    train_test_split
+    make_region_table
+    make_region_rules
+    make_sparse_regression_data
+    train_test_split_with_regions
+    make_region_class_rules
+    make_sparse_classification_data
+
+models.py
+    predict_regression
+    squared_loss
+    routed_regression_loss
+    routed_predict_regression
+    routed_classification_logits
+    top2_routed_predict_regression
+
+router.py
+    normalize_rows
+    route_topk
+    random_routes
+    similarity_routes
+
+train.py
+    sgd
+    l2_penalty
+    rescale_expert_weights
+    ReplayBuffer
+
+metrics.py
+    accuracy
+    per_region_mse
+    confusion_matrix
+
+experiments.ipynb
+    imports
+    manual seed
+    parameter initialization
+    training loops
+    evaluation blocks
+    experiment tables
+    plots, if you add them
+
+notes.md
+    hypotheses
+    observed losses
+    observed accuracies
+    bugs
+    explanations
+    final writeup
+```
+
+Simple rule:
+
+If the tutorial block starts with `def` or `class`, type it into the mapped `.py` file.
+
+If the tutorial block creates data, initializes parameters, runs `for epoch in ...`, prints metrics, or records an experiment, type it into `experiments.ipynb` or a `run_phase_XX.py` script.
+
+## 1.3 Starter File Headers
+
+Before typing the functions, create the files and put these headers at the top.
+
+In `data.py`:
+
+```python
+import torch
+```
+
+In `models.py`:
+
+```python
+import torch
+
+from router import route_topk
+```
+
+In `router.py`:
+
+```python
+import torch
+```
+
+In `train.py`:
+
+```python
+import torch
+```
+
+In `metrics.py`:
+
+```python
+import torch
+```
+
+In `experiments.ipynb`, start with:
+
+```python
+import torch
+import torch.nn.functional as F
+
+from data import (
+    make_regression_data,
+    train_test_split,
+    make_region_table,
+    make_region_rules,
+    make_sparse_regression_data,
+    train_test_split_with_regions,
+    make_region_class_rules,
+    make_sparse_classification_data,
+)
+from models import (
+    predict_regression,
+    squared_loss,
+    routed_regression_loss,
+    routed_predict_regression,
+    routed_classification_logits,
+    top2_routed_predict_regression,
+)
+from router import (
+    route_topk,
+    random_routes,
+    similarity_routes,
+)
+from train import (
+    sgd,
+    l2_penalty,
+    rescale_expert_weights,
+    ReplayBuffer,
+)
+from metrics import (
+    accuracy,
+    per_region_mse,
+    confusion_matrix,
+)
+
+torch.manual_seed(0)
+```
+
+This full import cell will fail at first because the files are still empty. That is fine.
+
+Early on, either:
+
+- run only the imports for functions you have already typed
+- or keep all code in `experiments.ipynb` for Phase 1, then split functions into `.py` files after the baseline works
+
+By Phase 5, the separate-file structure should be in place.
+
+## 1.4 Phase-By-Phase Typing Plan
+
+Use this as the mechanical sequence.
+
+```text
+Phase 0
+    terminal:
+        create folder
+        create venv
+        install libraries
+    experiments.ipynb:
+        first imports
+        first shape checks
+
+Phase 1
+    data.py:
+        make_regression_data
+        train_test_split
+    models.py:
+        predict_regression
+        squared_loss
+    train.py:
+        sgd
+    experiments.ipynb:
+        global regression training loop
+        global regression evaluation
+
+Phase 2
+    data.py:
+        make_region_table
+        make_region_rules
+        make_sparse_regression_data
+        train_test_split_with_regions
+    experiments.ipynb:
+        create region table
+        create multi-region data
+        print shape checks
+
+Phase 3
+    experiments.ipynb:
+        global model on multi-region data
+        baseline train/test metrics
+
+Phase 4
+    router.py:
+        normalize_rows
+        route_topk
+    experiments.ipynb:
+        router accuracy check
+
+Phase 5
+    models.py:
+        routed_regression_loss
+        routed_predict_regression
+    experiments.ipynb:
+        routed regression expert training loop
+        routed regression evaluation
+
+Phase 6
+    router.py:
+        random_routes
+        similarity_routes
+    experiments.ipynb:
+        oracle vs random vs similarity routing table
+
+Phase 7
+    train.py:
+        l2_penalty
+    experiments.ipynb:
+        weight decay runs
+        weight norm logging
+
+Phase 8
+    metrics.py:
+        per_region_mse
+    experiments.ipynb:
+        mixture shift
+        noise shift
+        per-region evaluation
+
+Phase 9
+    data.py:
+        make_region_class_rules
+        make_sparse_classification_data
+    metrics.py:
+        accuracy
+    models.py:
+        routed_classification_logits
+    experiments.ipynb:
+        global softmax classifier
+        routed softmax classifier
+
+Phase 10
+    models.py:
+        top2_routed_predict_regression
+    experiments.ipynb:
+        top-1 vs top-2 comparison
+
+Phase 11
+    experiments.ipynb:
+        local update gate experiment
+
+Phase 12
+    train.py:
+        rescale_expert_weights
+    experiments.ipynb:
+        homeostatic scaling comparison
+
+Phase 13
+    train.py:
+        ReplayBuffer
+    experiments.ipynb:
+        replay/no-replay comparison
+
+Final
+    notes.md:
+        final writeup
+```
+
+## 1.5 Minimal Sanity Script
+
+Before using a notebook, you can test the environment with a tiny script named `sanity_check.py`.
+
+Type this into `sanity_check.py`:
+
+```python
+import torch
+
+X = torch.randn(4, 6)
+w = torch.randn(6)
+b = torch.tensor(0.5)
+y_hat = X @ w + b
+
+print("torch version:", torch.__version__)
+print("X:", X.shape)
+print("w:", w.shape)
+print("y_hat:", y_hat.shape)
+print(y_hat)
+```
+
+Run it:
+
+```bash
+python sanity_check.py
+```
+
+Expected:
+
+```text
+torch imports successfully
+X is [4, 6]
+w is [6]
+y_hat is [4]
 ```
 
 ## 2. Project Mental Model
@@ -276,7 +748,7 @@ The model should learn weights close to `true_w` and bias close to `true_b`.
 
 For this first baseline, use exactly 6 features. The hardcoded `true_w` below has length 6.
 
-### 7.3 Code To Type
+### 7.3 Code To Type In `data.py`
 
 ```python
 def make_regression_data(num_examples, num_features, noise_std=0.1):
@@ -297,7 +769,7 @@ true_w: [num_features]
 true_b: scalar
 ```
 
-### 7.4 Train/Test Split
+### 7.4 Train/Test Split In `data.py`
 
 ```python
 def train_test_split(X, y, train_fraction=0.8):
@@ -317,6 +789,8 @@ Test loss tells you whether the model learned a rule that transfers to examples 
 
 ### 7.5 Model, Loss, and SGD
 
+Type `predict_regression` and `squared_loss` into `models.py`.
+
 ```python
 def predict_regression(X, w, b):
     return X @ w + b
@@ -327,6 +801,8 @@ def squared_loss(y_hat, y):
     return ((y_hat - y) ** 2).mean()
 ```
 
+Type `sgd` into `train.py`.
+
 ```python
 def sgd(params, lr):
     with torch.no_grad():
@@ -335,7 +811,7 @@ def sgd(params, lr):
             p.grad.zero_()
 ```
 
-### 7.6 Training Loop
+### 7.6 Training Loop In `experiments.ipynb`
 
 ```python
 X, y, true_w, true_b = make_regression_data(200, 6)
@@ -351,7 +827,7 @@ for epoch in range(50):
     sgd([w, b], lr=0.05)
 ```
 
-### 7.7 Evaluation
+### 7.7 Evaluation In `experiments.ipynb`
 
 ```python
 with torch.no_grad():
@@ -424,7 +900,7 @@ region 3 has another hidden linear rule
 
 One global linear model now has a harder job. It has to average across conflicting rules.
 
-### 8.2 Region Prototypes
+### 8.2 Region Prototypes In `data.py`
 
 Each region gets a prototype vector.
 
@@ -445,7 +921,7 @@ region_table: [num_regions, num_features]
 
 Each row is one region embedding.
 
-### 8.3 Region-Specific Regression Rules
+### 8.3 Region-Specific Regression Rules In `data.py`
 
 ```python
 def make_region_rules(num_regions, num_features):
@@ -467,7 +943,7 @@ For region `r`, the hidden rule is:
 y = x @ true_W[r] + true_b[r] + noise
 ```
 
-### 8.4 Generate Region Data
+### 8.4 Generate Region Data In `data.py`
 
 ```python
 def make_sparse_regression_data(
@@ -515,7 +991,7 @@ region 1 uses true_W[1], true_b[1]
 
 So the router can use geometry to guess which expert should handle the example.
 
-### 8.6 Checkpoint Prints
+### 8.6 Checkpoint Prints In `experiments.ipynb`
 
 ```python
 num_regions = 4
@@ -551,7 +1027,7 @@ region_ids contains integers from 0 to 3
 - In real data, you usually do not get perfect region IDs.
 - Do not train on `region_ids` as labels unless the experiment explicitly asks for oracle routing.
 
-### 8.8 Region-Aware Train/Test Split
+### 8.8 Region-Aware Train/Test Split In `data.py`
 
 Once `region_ids` exist, split them together with `X` and `y`.
 
@@ -584,7 +1060,7 @@ This is the baseline.
 
 If the global model already works perfectly, sparse routing has little to prove.
 
-### 9.2 Code To Type
+### 9.2 Code To Type In `experiments.ipynb`
 
 Use the same `predict_regression`, `squared_loss`, and `sgd` from Phase 1.
 
@@ -690,7 +1166,7 @@ cosine(a, b) = dot(a, b) / (norm(a) * norm(b))
 
 If two vectors point in similar directions, cosine similarity is high.
 
-### 10.3 Code To Type
+### 10.3 Code To Type In `router.py`
 
 ```python
 def normalize_rows(X):
@@ -716,7 +1192,7 @@ top_ids:      [batch, k]
 top_scores:   [batch, k]
 ```
 
-### 10.4 Test The Router
+### 10.4 Test The Router In `experiments.ipynb`
 
 ```python
 top_ids, top_scores, scores = route_topk(X, region_table, k=1)
@@ -787,7 +1263,7 @@ W[3], b[3] for region 3
 
 Each expert only sees examples routed to it.
 
-### 11.2 Expert Parameter Shapes
+### 11.2 Expert Parameter Shapes In `experiments.ipynb`
 
 Use:
 
@@ -809,7 +1285,7 @@ For region `r`:
 prediction = X_for_region_r @ expert_W[r] + expert_b[r]
 ```
 
-### 11.3 Routed Loss
+### 11.3 Routed Loss In `models.py`
 
 ```python
 def routed_regression_loss(X, y, expert_W, expert_b, route_ids):
@@ -835,7 +1311,7 @@ This averages over examples, not over regions.
 
 If you average each region loss equally, a region with 2 examples gets the same weight as a region with 200 examples. That may be useful for some experiments, but it is not the default baseline.
 
-### 11.4 Training With Similarity Routing
+### 11.4 Training With Similarity Routing In `experiments.ipynb`
 
 ```python
 expert_W = torch.randn(num_regions, num_features, requires_grad=True)
@@ -859,6 +1335,8 @@ for epoch in range(200):
 
 ### 11.5 Evaluation Function
 
+Type `routed_predict_regression` into `models.py`.
+
 ```python
 def routed_predict_regression(X, expert_W, expert_b, region_table):
     top_ids, _, _ = route_topk(X, region_table, k=1)
@@ -872,6 +1350,8 @@ def routed_predict_regression(X, expert_W, expert_b, region_table):
 
     return y_hat, route_ids
 ```
+
+Type the evaluation block into `experiments.ipynb`.
 
 ```python
 with torch.no_grad():
@@ -951,7 +1431,7 @@ Random routing tells you the bad baseline.
 
 Similarity routing tells you whether your actual router adds value.
 
-### 12.2 Code To Type
+### 12.2 Code To Type In `router.py`
 
 ```python
 def random_routes(num_examples, num_regions):
@@ -965,6 +1445,8 @@ def similarity_routes(X, region_table):
 ```
 
 Oracle routes are just:
+
+Type this directly into `experiments.ipynb` when running the oracle experiment.
 
 ```python
 route_ids = region_ids
@@ -1025,12 +1507,16 @@ prediction error + penalty for large weights
 
 ### 13.2 Manual Weight Decay
 
+Type `l2_penalty` into `train.py`.
+
 For the global model:
 
 ```python
 def l2_penalty(w):
     return (w ** 2).sum() / 2
 ```
+
+Type the loss-composition lines into `experiments.ipynb` inside the relevant training loop.
 
 ```python
 loss = squared_loss(y_hat, y_train) + wd * l2_penalty(w)
@@ -1045,7 +1531,7 @@ loss = routed_regression_loss(
 loss = loss + wd * l2_penalty(expert_W)
 ```
 
-### 13.3 What To Measure
+### 13.3 What To Measure In `experiments.ipynb`
 
 Record:
 
@@ -1088,7 +1574,7 @@ Examples in this project:
 - train with balanced regions, test with imbalanced regions
 - test with shifted region prototypes
 
-### 14.2 Mixture Shift
+### 14.2 Mixture Shift In `experiments.ipynb`
 
 Training mixture:
 
@@ -1114,7 +1600,7 @@ X_test, y_test, test_region_ids = make_sparse_regression_data(
 )
 ```
 
-### 14.3 Noise Shift
+### 14.3 Noise Shift In `experiments.ipynb`
 
 Train:
 
@@ -1141,6 +1627,8 @@ shift_type | model_type | train_loss | test_loss | router_accuracy | region_usag
 ```
 
 Also compute per-region test loss:
+
+Type `per_region_mse` into `metrics.py`.
 
 ```python
 def per_region_mse(y_hat, y, region_ids, num_regions):
@@ -1198,7 +1686,7 @@ The routed idea is the same:
 route input -> selected classifier expert -> logits -> cross-entropy -> update
 ```
 
-### 15.2 Region-Specific Classification Rules
+### 15.2 Region-Specific Classification Rules In `data.py`
 
 ```python
 def make_region_class_rules(num_regions, num_features, num_classes):
@@ -1214,7 +1702,7 @@ true_W: [regions, features, classes]
 true_b: [regions, classes]
 ```
 
-### 15.3 Generate Classification Data
+### 15.3 Generate Classification Data In `data.py`
 
 ```python
 def make_sparse_classification_data(
@@ -1250,6 +1738,8 @@ logits:     [examples, classes]
 
 ### 15.4 Global Softmax Classifier
 
+Type the import and training loop into `experiments.ipynb`.
+
 Use logits directly.
 
 Do not manually apply softmax before `torch.nn.functional.cross_entropy`.
@@ -1271,6 +1761,8 @@ for epoch in range(200):
 
 Accuracy:
 
+Type `accuracy` into `metrics.py`.
+
 ```python
 def accuracy(logits, y):
     predictions = logits.argmax(dim=1)
@@ -1278,6 +1770,8 @@ def accuracy(logits, y):
 ```
 
 ### 15.5 Routed Softmax Classifier
+
+Type the expert parameter initialization into `experiments.ipynb`.
 
 Expert parameter shapes:
 
@@ -1289,6 +1783,8 @@ expert_b = torch.zeros(num_regions, num_classes, requires_grad=True)
 ```
 
 Routed logits:
+
+Type `routed_classification_logits` into `models.py`.
 
 ```python
 def routed_classification_logits(X, expert_W, expert_b, route_ids):
@@ -1305,6 +1801,8 @@ def routed_classification_logits(X, expert_W, expert_b, route_ids):
 ```
 
 Training:
+
+Type this loop into `experiments.ipynb`.
 
 ```python
 for epoch in range(200):
@@ -1376,7 +1874,7 @@ average the predictions
 
 This is not necessarily optimal. It is just the simplest ballot.
 
-### 16.3 Code Sketch
+### 16.3 Code Sketch In `models.py`
 
 ```python
 def top2_routed_predict_regression(X, expert_W, expert_b, region_table):
@@ -1433,7 +1931,7 @@ This is not real biology. It is a mechanical toy analog for:
 local participation x global salience
 ```
 
-### 17.2 Simple Batch-Level Gate
+### 17.2 Simple Batch-Level Gate In `experiments.ipynb`
 
 ```python
 threshold = 0.5
@@ -1519,6 +2017,8 @@ This is not content-aware. It does not know whether predictions are correct.
 
 ### 18.2 Code Sketch
 
+Type `rescale_expert_weights` into `train.py`.
+
 ```python
 def rescale_expert_weights(expert_W, target_norm=1.0):
     with torch.no_grad():
@@ -1528,6 +2028,8 @@ def rescale_expert_weights(expert_W, target_norm=1.0):
 ```
 
 Use every 20 epochs:
+
+Type this call into the relevant training loop in `experiments.ipynb`.
 
 ```python
 if epoch % 20 == 0:
@@ -1563,7 +2065,7 @@ A replay buffer stores some old examples.
 
 During later training, you mix old examples with current examples so the model does not only train on the newest distribution.
 
-### 19.2 Simple Replay Buffer
+### 19.2 Simple Replay Buffer In `train.py`
 
 ```python
 class ReplayBuffer:
@@ -1686,6 +2188,8 @@ Classification metrics:
 - region usage count
 
 Simple confusion matrix:
+
+Type `confusion_matrix` into `metrics.py`.
 
 ```python
 def confusion_matrix(pred, y, num_classes):
