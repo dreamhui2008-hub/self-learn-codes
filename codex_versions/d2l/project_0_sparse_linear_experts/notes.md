@@ -56,6 +56,104 @@ You are ready to move on only when you can answer:
     * That the loss is very small and congratulations!
     * CORRECT ANSWER: It means the model recovered the hidden linear rule used to generate the synthetic labels. The learned parameters are close to the ground-truth parameters. Loss should be small too, but w close to true_w is specifically evidence that the learned rule matches the data-generating rule.
 
+# 8.3 Region Prototpyes
+
+* Suppose we have 3 regions and 2 features:
+
+```
+  region_table = torch.tensor([
+      [1.0, 0.0],   # region 0 points right
+      [0.0, 1.0],   # region 1 points up
+      [-1.0, 0.0],  # region 2 points left
+  ])
+```
+
+
+* Now suppose an input/query is:
+
+```
+  x = torch.tensor([0.9, 0.1])
+```
+
+* This points mostly right, so it should match region 0.
+
+* The comparison is usually a dot product / cosine similarity:
+
+```
+  scores = x @ region_table.T
+  print(scores)
+```
+
+* Result:
+
+```
+  tensor([ 0.9000,  0.1000, -0.9000])
+```
+
+* Interpretation:
+
+```
+  score vs region 0 =  0.9  high match
+  score vs region 1 =  0.1  weak match
+  score vs region 2 = -0.9  opposite direction
+```
+
+* Then route to the best region:
+
+```
+  chosen_region = scores.argmax()
+  print(chosen_region)
+```
+
+* Result:
+
+```
+  tensor(0)
+```
+
+* For a batch:
+
+```
+  X = torch.tensor([
+      [0.9, 0.1],    # near region 0
+      [0.2, 0.8],    # near region 1
+      [-0.7, 0.1],   # near region 2
+  ])
+
+  scores = X @ region_table.T
+  top_regions = scores.argmax(dim=1)
+
+  print(scores)
+  print(top_regions)
+```
+
+* Output:
+
+```
+  tensor([[ 0.9000,  0.1000, -0.9000],
+          [ 0.2000,  0.8000, -0.2000],
+          [-0.7000,  0.1000,  0.7000]])
+
+  tensor([0, 1, 2])
+```
+
+* That is the basic router idea:
+
+```
+  input vector @ region prototype vectors -> similarity scores
+  highest score -> selected expert
+```
+
+* Because region_table rows are normalized to length 1, the dot product behaves like cosine similarity if x is also normalized.
+
+# 8.7 Common Confusion Points
+
+* `region_table` helps create inputs and route inputs.
+* `true_W` creates labels.
+* `region_ids` are known only because this is synthetic data.
+* In real data, you usually do not get perfect region IDs because human-provided tags may not use the right ontology and may not map cleanly to your MoE experts.
+* Do not train on region_ids as labels unless the experiment explicitly asks for oracle routing.
+
 
   ## Stopping Point
 
