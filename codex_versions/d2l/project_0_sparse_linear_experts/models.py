@@ -1,7 +1,5 @@
 import torch
 
-from router import route_topk
-
 # Define the linear regression model (prediction function)
 def predict_regression(X, w, b):
     return X @ w + b

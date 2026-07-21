@@ -406,8 +406,6 @@ In `models.py`:
 
 ```python
 import torch
-
-from router import route_topk
 ```
 
 In `router.py`:
@@ -428,58 +426,85 @@ In `metrics.py`:
 import torch
 ```
 
-In `experiments.ipynb`, start with:
+In `experiments.ipynb`, start with a safe import cell.
+
+This cell tries to import every function in the final project map. If a function has not been typed yet, it skips that function and prints its name. That lets you keep one import cell while building the project gradually.
 
 ```python
 import torch
 import torch.nn.functional as F
+from importlib import import_module, reload
 
-from data import (
-    make_regression_data,
-    train_test_split,
-    make_region_table,
-    make_region_rules,
-    make_sparse_regression_data,
-    train_test_split_with_regions,
-    make_region_class_rules,
-    make_sparse_classification_data,
-)
-from models import (
-    predict_regression,
-    squared_loss,
-    routed_regression_loss,
-    routed_predict_regression,
-    routed_classification_logits,
-    top2_routed_predict_regression,
-)
-from router import (
-    route_topk,
-    random_routes,
-    similarity_routes,
-)
-from train import (
-    sgd,
-    l2_penalty,
-    rescale_expert_weights,
-    ReplayBuffer,
-)
-from metrics import (
-    accuracy,
-    per_region_mse,
-    confusion_matrix,
-)
+def safe_import(module_name, names):
+    try:
+        module = import_module(module_name)
+        module = reload(module)
+    except Exception as error:
+        print(f"SKIP module {module_name}: {error}")
+        return
+
+    for name in names:
+        if hasattr(module, name):
+            globals()[name] = getattr(module, name)
+        else:
+            print(f"SKIP {module_name}.{name}: not typed yet")
+
+safe_import("data", [
+    "make_regression_data",
+    "train_test_split",
+    "make_region_table",
+    "make_region_rules",
+    "make_sparse_regression_data",
+    "train_test_split_with_regions",
+    "make_region_class_rules",
+    "make_sparse_classification_data",
+])
+
+safe_import("models", [
+    "predict_regression",
+    "squared_loss",
+    "routed_regression_loss",
+    "routed_predict_regression",
+    "routed_classification_logits",
+    "top2_routed_predict_regression",
+])
+
+safe_import("router", [
+    "route_topk",
+    "random_routes",
+    "similarity_routes",
+])
+
+safe_import("train", [
+    "sgd",
+    "l2_penalty",
+    "rescale_expert_weights",
+    "ReplayBuffer",
+])
+
+safe_import("metrics", [
+    "accuracy",
+    "per_region_mse",
+    "confusion_matrix",
+])
 
 torch.manual_seed(0)
 ```
 
-This full import cell will fail at first because the files are still empty. That is fine.
+Run this cell whenever you add or change a function in a `.py` file.
 
-Early on, either:
+Expected behavior:
 
-- run only the imports for functions you have already typed
-- or keep all code in `experiments.ipynb` for Phase 1, then split functions into `.py` files after the baseline works
+```text
+functions you have typed become available
+functions you have not typed yet are printed as SKIP
+```
 
-By Phase 5, the separate-file structure should be in place.
+If a whole module is skipped, that usually means the file has a syntax error or a top-level import error.
+
+Important:
+
+Do not put future-only imports at the top of a module. For example, early `models.py` should not import `route_topk` before `router.py` defines it. Later, when a model function needs `route_topk`, import it inside that function or add the import after `route_topk` exists.
 
 ## 1.4 Phase-By-Phase Typing Plan
 
