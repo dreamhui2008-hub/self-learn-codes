@@ -94,6 +94,18 @@ Not required:
 - GPU
 - D2L package
 
+Git rule:
+
+Do not commit `.venv/`. A virtual environment contains installed packages and generated executables. It is large, machine-specific, and can contain path structures that Git has trouble indexing on Windows/WSL.
+
+Commit this instead:
+
+```text
+requirements.txt
+```
+
+Then recreate the venv on each machine from that package list.
+
 PyTorch's official install page currently says latest stable PyTorch requires Python 3.10 or later. Python's official `venv` docs recommend `python -m venv` for creating virtual environments.
 
 ### Option A: WSL / Bash Setup
@@ -127,7 +139,7 @@ python -m pip install --upgrade pip
 Install libraries:
 
 ```bash
-python -m pip install torch matplotlib jupyter ipykernel
+python -m pip install -r requirements.txt
 ```
 
 Register a notebook kernel:
