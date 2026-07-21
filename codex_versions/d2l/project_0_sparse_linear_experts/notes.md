@@ -55,3 +55,31 @@ You are ready to move on only when you can answer:
 * What does it mean if w is close to true_w?
     * That the loss is very small and congratulations!
     * CORRECT ANSWER: It means the model recovered the hidden linear rule used to generate the synthetic labels. The learned parameters are close to the ground-truth parameters. Loss should be small too, but w close to true_w is specifically evidence that the learned rule matches the data-generating rule.
+
+
+  ## Stopping Point
+
+  Date: 2026-07-20
+
+  Current phase:
+  Completed through 7.10 Checkpoint.
+
+  Working state:
+  - venv works
+  - torch imports
+  - Phase 1 functions typed:
+    - data.py: make_regression_data, train_test_split
+    - models.py: predict_regression, squared_loss
+    - train.py: sgd
+  - safe_import cell works / should be used in experiments.ipynb
+  - 7.6 training loop ran
+  - 7.7 evaluation ran
+  - 7.9 break-it experiments done
+  - 7.10 checkpoint answered
+
+  Next step:
+  Start Phase 2: Multiple Regions With Different Hidden Rules.
+  Begin with 8.2 make_region_table in data.py.
+
+  Prompt:
+  Read my notes.md and continue from the stopping point.

@@ -433,3 +433,185 @@ Work through it before continuing to D2L Chapters 5-7. It defines:
 - exact metrics
 - expected bugs and debugging checks
 - a hand-typing-friendly tutorial sequence
+
+## Appendix: Reviewed Resource Dump
+
+This appendix records the July 2026 resource dump review.
+
+The dump included books, courses, GitHub repos, Chinese-language RAG/LLM materials, computer vision resources, theory texts, comp-neuro material, AI engineering resources, and LLM-from-scratch systems material.
+
+Conclusion:
+
+Do not expand the active roadmap right now. The mainline remains D2L plus the project checkpoints. Most resources in the dump are useful only after a project creates demand for them.
+
+Active rule:
+
+- do not add a resource just because it is good
+- add a resource only when it answers a current project question
+- prefer one good resource per project block over five parallel resources
+- use GitHub awesome lists as idea mines, not curricula
+
+### Resource Dump Items Worth Parking
+
+Classic ML / job breadth:
+
+- ISLP Python labs
+- Hands-On Machine Learning with Scikit-Learn and PyTorch
+- Stanford CS229 notes, selectively
+
+Use case:
+
+These are useful if classic ML, tabular modeling, feature engineering, cross-validation, regularization, trees, SVMs, or baseline evaluation feel weak. They support job preparation, but should not interrupt Project 0.
+
+When to consider:
+
+- after Project 0
+- before or alongside a classic ML/tabular side project
+- when interview prep exposes weak classical ML fundamentals
+
+AI engineering / hiring signal:
+
+- AI Engineering Field Guide by Alexey Grigorev
+- Chip Huyen, AI Engineering
+- Chip Huyen, Designing Machine Learning Systems
+
+Use case:
+
+These support the career/product track: what companies hire for, how AI systems are evaluated, how RAG/agent systems are built and debugged, what makes a portfolio project legible.
+
+When to consider:
+
+- during the RAG/API/agent phase
+- when shaping portfolio projects
+- when preparing for AI engineering interviews
+
+Computational neuroscience / research bridge:
+
+- Neuromatch computational neuroscience tutorials
+
+Use case:
+
+This is the best near-term bridge to the algorithm topology. Use only selected modules: model fitting, sparse/local learning themes, dynamical systems, biological neuron models, STDP, reinforcement learning, and causality where relevant.
+
+When to consider:
+
+- after the NLP/search project, if research energy is high
+- between Project 2 and Project 3, selectively
+- when extending Project 0 into local learning, replay, or catastrophic-forgetting experiments
+
+LLM from scratch / systems capstone:
+
+- Stanford CS336
+- minimind
+- nano-vLLM
+- selected "build a reasoning model" or LLM-from-scratch materials
+
+Use case:
+
+These are later-stage implementation-heavy resources for tokenizers, transformers, pretraining, evaluation, systems, inference, and scaling.
+
+When to consider:
+
+- after D2L attention/transformer chapters
+- after the NLP embeddings/search project
+- after basic RAG/API work is already functional
+- not during Project 0
+
+Theory shelf:
+
+- Bishop, Pattern Recognition and Machine Learning
+- Foundations of Machine Learning
+- Elements of Deep Learning
+- Optimization for Data Analysis
+- Linear Algebra and Optimization for Machine Learning
+- AIMA
+
+Use case:
+
+These are not active curriculum. Use them as references when a concrete project or D2L chapter creates a theory gap.
+
+When to consider:
+
+- when reading papers becomes a real blocker
+- when optimization/generalization questions become concrete
+- after project experience makes the abstractions less floating
+
+Vision shelf:
+
+- OpenCV resources
+- YOLOv5
+- image processing books
+- large vision-language model materials
+- deep image recognition books
+
+Use case:
+
+Useful only after CNN basics and modern vision chapters. These should support a vision project, not replace D2L vision foundations.
+
+When to consider:
+
+- after D2L Chapters 8 and 14
+- when revisiting the CNN project with real augmentation, transfer learning, detection, segmentation, or deployment
+
+RAG / LangChain / app-development shelf:
+
+- production RAG books
+- LangChain books
+- RAG fusion repos
+- Chinese-language RAG full-stack guides
+- DAIR-style prompt/LLM resources
+
+Use case:
+
+Useful only once the minimal RAG pipeline exists. Do not begin with LangChain abstractions before understanding retrieval, chunking, embeddings, evaluation, and API behavior.
+
+When to consider:
+
+- during Project 3
+- after a minimal RAG pipeline answers questions against a known corpus
+- when adding production evaluation, observability, or agent tooling
+
+Hardware / edge / systems shelf:
+
+- Harvard edge/AI systems resources
+- hardware-adjacent LLM deployment and inference resources
+- C++/runtime/system materials
+
+Use case:
+
+Deferred. The hardware topology stays a north star, not active implementation work.
+
+When to consider:
+
+- after D2L Chapter 13 computational performance
+- after software routing/local-learning experiments produce meaningful questions
+- before any serious NUMA, gem5, C++, or hardware simulation work
+
+### Resources Intentionally Not Added To Active Roadmap
+
+The rest of the dump is intentionally parked.
+
+Examples:
+
+- broad GitHub resource lists
+- generic "50 ML projects" lists
+- multiple overlapping RAG/LangChain books
+- multiple overlapping computer-vision books
+- advanced theory texts without an immediate project need
+- LLM deployment repos before transformer/system foundations
+
+Reason:
+
+They are not bad resources. They are premature or duplicative for the current stage.
+
+Current priority remains:
+
+```text
+Project 0
+-> D2L Chapters 5-7
+-> CNN/custom optimizer project
+-> D2L modern vision/optimization/performance
+-> sequence/attention/NLP block
+-> NLP/search project
+-> RAG/API/agent project
+```
