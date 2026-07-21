@@ -32,7 +32,7 @@ Recommended workflow:
 
 1. Read one phase.
 2. Type the code by hand into your own files.
-3. Run it.
+3. Run only the cells or commands marked as runnable.
 4. Print tensor shapes.
 5. Break one thing deliberately.
 6. Explain in `notes.md` what broke and why.
@@ -298,6 +298,99 @@ Simple rule:
 If the tutorial block starts with `def` or `class`, type it into the mapped `.py` file.
 
 If the tutorial block creates data, initializes parameters, runs `for epoch in ...`, prints metrics, or records an experiment, type it into `experiments.ipynb` or a `run_phase_XX.py` script.
+
+Run rule:
+
+- after typing code into a `.py` file, save the file; do not run that file unless the tutorial explicitly says to
+- after typing a cell into `experiments.ipynb`, run that notebook cell immediately
+- if a notebook cell depends on a function you just changed in a `.py` file, restart the notebook kernel or rerun the import cell
+- if the section says "Run now", execute it before moving on
+- if a cell only defines variables or trains silently, no output is normal until the next evaluation or print cell
+
+## 1.2.1 Execution Checklist
+
+Use this checklist when you are unsure whether to run something.
+
+```text
+Setup commands
+    Run in terminal.
+
+Starter headers in data.py/models.py/router.py/train.py/metrics.py
+    Type and save only.
+
+Function definitions in .py files
+    Type and save only.
+    Rerun the notebook import cell after saving.
+
+Class definitions in .py files
+    Type and save only.
+    Rerun the notebook import cell after saving.
+
+experiments.ipynb cells that create tensors or variables
+    Run now.
+
+experiments.ipynb cells with for epoch loops
+    Run now.
+    No output is normal unless the cell contains print().
+
+experiments.ipynb cells with print()
+    Run now.
+    They are usually checkpoints.
+
+notes.md templates
+    Type or paste into notes.md.
+    Do not run.
+
+Experiment tables
+    Fill in by rerunning earlier training/evaluation cells with changed settings.
+    They are not single code blocks unless the tutorial provides one.
+
+Debugging snippets
+    Run only when you need to inspect a bug or verify a shape.
+```
+
+Section-by-section:
+
+```text
+1.1 setup commands: run in terminal
+1.3 starter file headers: type/save only
+1.5 sanity_check.py: type file, then run in terminal
+6.3 first imports: run in notebook
+6.4 first shape checks: run in notebook
+7.3-7.5 function code: type/save only
+7.6 training loop: run in notebook
+7.7 evaluation: run in notebook
+8.2-8.4 function code: type/save only
+8.6 checkpoint prints: run in notebook
+8.8 function code: type/save only
+9.2 data generation/training/evaluation: run in notebook
+10.3 router functions: type/save only
+10.4 router test: run in notebook
+11.2 expert parameter init: run in notebook
+11.3 routed loss: type/save only
+11.4 routed training: run in notebook
+11.5 routed predict function: type/save only; evaluation block: run in notebook
+12.2 random/similarity route functions: type/save only; oracle route line: run inside notebook experiment
+12.3 experiment table: run variants and fill notes/table
+13.2 l2_penalty: type/save only; loss-composition lines: run inside modified training loops
+13.3 norm check: run in notebook after each experiment
+14.2-14.3 shifted data generation: run in notebook
+14.4 per_region_mse: type/save only
+15.2-15.3 classification data functions: type/save only
+15.4 global softmax training: run in notebook; accuracy function: type/save only
+15.5 routed logits function: type/save only; routed training loop: run in notebook
+15.7 experiment table: run variants and fill notes/table
+16.3 top2 function: type/save only
+16.4 top-2 comparison: run variants in notebook
+17.2 local update gate: run inside a modified routed training loop
+18.2 rescale function: type/save only; rescale call: run inside a modified training loop
+19.2 ReplayBuffer class: type/save only
+19.3 replay comparison: run variants in notebook
+20 required experiment matrix: checklist, not code
+21 confusion_matrix: type/save only
+22 notes template: write in notes.md
+23 debugging snippets: run only when debugging
+```
 
 ## 1.3 Starter File Headers
 
@@ -686,17 +779,29 @@ Synthetic data lets you ask cleaner questions:
 
 Type this at the top of your early experiment file:
 
+Action:
+
+Run this in `experiments.ipynb`.
+
 ```python
 import torch
 ```
 
 Optional later:
 
+Action:
+
+Run this only when you start plotting.
+
 ```python
 import matplotlib.pyplot as plt
 ```
 
 Set a seed:
+
+Action:
+
+Run this in `experiments.ipynb`.
 
 ```python
 torch.manual_seed(0)
@@ -705,6 +810,10 @@ torch.manual_seed(0)
 ### 6.4 First Shape Checks
 
 Before modeling, make sure you can inspect shapes:
+
+Action:
+
+Run this in `experiments.ipynb`.
 
 ```python
 X = torch.randn(4, 6)
@@ -825,6 +934,16 @@ def sgd(params, lr):
 
 ### 7.6 Training Loop In `experiments.ipynb`
 
+Run this cell immediately after typing it.
+
+Expected visible output:
+
+```text
+none
+```
+
+No output is normal. This cell trains the parameters, but it does not print anything.
+
 ```python
 X, y, true_w, true_b = make_regression_data(200, 6)
 X_train, y_train, X_test, y_test = train_test_split(X, y)
@@ -841,6 +960,19 @@ for epoch in range(50):
 
 ### 7.7 Evaluation In `experiments.ipynb`
 
+Run this cell immediately after the training loop.
+
+Expected visible output:
+
+```text
+train loss number
+test loss number
+learned weights
+learned bias
+true weights
+true bias
+```
+
 ```python
 with torch.no_grad():
     train_loss = squared_loss(predict_regression(X_train, w, b), y_train)
@@ -853,6 +985,10 @@ print(b)
 print(true_w)
 print(true_b)
 ```
+
+Run checkpoint:
+
+Do not move to Phase 2 until this evaluation cell prints losses and learned parameters.
 
 ### 7.8 Step-by-Step Breakdown
 
@@ -1005,6 +1141,17 @@ So the router can use geometry to guess which expert should handle the example.
 
 ### 8.6 Checkpoint Prints In `experiments.ipynb`
 
+Run this cell immediately after typing it.
+
+Expected visible output:
+
+```text
+X shape
+y shape
+region_ids shape
+first few region IDs
+```
+
 ```python
 num_regions = 4
 num_features = 6
@@ -1078,6 +1225,8 @@ Use the same `predict_regression`, `squared_loss`, and `sgd` from Phase 1.
 
 Generate data:
 
+Run this data-generation cell before the training cell.
+
 ```python
 torch.manual_seed(0)
 
@@ -1102,6 +1251,14 @@ X, y, region_ids = make_sparse_regression_data(
 
 Train:
 
+Run this training cell after the data-generation cell.
+
+Expected visible output:
+
+```text
+none
+```
+
 ```python
 w = torch.randn(num_features, requires_grad=True)
 b = torch.zeros((), requires_grad=True)
@@ -1114,6 +1271,8 @@ for epoch in range(200):
 ```
 
 Evaluate:
+
+Run this evaluation cell immediately after training.
 
 ```python
 with torch.no_grad():
@@ -1206,6 +1365,14 @@ top_scores:   [batch, k]
 
 ### 10.4 Test The Router In `experiments.ipynb`
 
+Run this cell after `route_topk` exists in `router.py` and after you have generated `X`, `region_table`, and `region_ids`.
+
+Expected visible output:
+
+```text
+one router accuracy number
+```
+
 ```python
 top_ids, top_scores, scores = route_topk(X, region_table, k=1)
 predicted_regions = top_ids.squeeze(1)
@@ -1279,6 +1446,10 @@ Each expert only sees examples routed to it.
 
 Use:
 
+Action:
+
+Run this in `experiments.ipynb` before the routed regression training loop.
+
 ```python
 expert_W = torch.randn(num_regions, num_features, requires_grad=True)
 expert_b = torch.zeros(num_regions, requires_grad=True)
@@ -1325,6 +1496,14 @@ If you average each region loss equally, a region with 2 examples gets the same 
 
 ### 11.4 Training With Similarity Routing In `experiments.ipynb`
 
+Run this cell after `routed_regression_loss` exists in `models.py`.
+
+Expected visible output:
+
+```text
+none
+```
+
 ```python
 expert_W = torch.randn(num_regions, num_features, requires_grad=True)
 expert_b = torch.zeros(num_regions, requires_grad=True)
@@ -1365,6 +1544,8 @@ def routed_predict_regression(X, expert_W, expert_b, region_table):
 
 Type the evaluation block into `experiments.ipynb`.
 
+Run this evaluation cell immediately after the routed training loop.
+
 ```python
 with torch.no_grad():
     train_pred, train_routes = routed_predict_regression(
@@ -1401,6 +1582,10 @@ Even though `expert_W` is one tensor, indexing can produce sparse-like gradient 
 If only `expert_W[2]` participates in the computation graph for a batch, then only region 2's slice receives meaningful gradient from that batch.
 
 You can inspect this:
+
+Action:
+
+Run this in `experiments.ipynb` only when you want to inspect gradients after `loss.backward()` and before `sgd(...)`.
 
 ```python
 print(expert_W.grad)
@@ -1460,6 +1645,10 @@ Oracle routes are just:
 
 Type this directly into `experiments.ipynb` when running the oracle experiment.
 
+Action:
+
+Run this as part of the oracle-routing experiment cell. Do not put it in `router.py`.
+
 ```python
 route_ids = region_ids
 ```
@@ -1480,6 +1669,10 @@ Record:
 ```text
 model_type | routing_type | train_loss | test_loss | router_accuracy
 ```
+
+Run checkpoint:
+
+Do not move to weight decay until you have at least rough numbers for global, oracle-routed, random-routed, and similarity-routed regression.
 
 ### 12.4 What To Learn
 
@@ -1530,6 +1723,10 @@ def l2_penalty(w):
 
 Type the loss-composition lines into `experiments.ipynb` inside the relevant training loop.
 
+Action:
+
+Do not run these two snippets by themselves. Insert them into the training loop variant where you are testing weight decay, then run that whole training loop.
+
 ```python
 loss = squared_loss(y_hat, y_train) + wd * l2_penalty(w)
 ```
@@ -1552,6 +1749,8 @@ wd | train_loss | test_loss | weight_norm
 ```
 
 Compute weight norm:
+
+Run this after each weight-decay experiment.
 
 ```python
 with torch.no_grad():
@@ -1590,17 +1789,27 @@ Examples in this project:
 
 Training mixture:
 
+Action:
+
+Run this in `experiments.ipynb` when starting the mixture-shift experiment.
+
 ```python
 train_mixture = torch.tensor([0.45, 0.45, 0.05, 0.05])
 ```
 
 Test mixture:
 
+Action:
+
+Run this immediately after the training mixture cell.
+
 ```python
 test_mixture = torch.tensor([0.05, 0.05, 0.45, 0.45])
 ```
 
 Generate:
+
+Run this before training the shifted-distribution experiment.
 
 ```python
 X_train, y_train, train_region_ids = make_sparse_regression_data(
@@ -1616,6 +1825,8 @@ X_test, y_test, test_region_ids = make_sparse_regression_data(
 
 Train:
 
+Run these cells when you intentionally want feature noise to differ between training and testing.
+
 ```python
 X_train, y_train, train_region_ids = make_sparse_regression_data(
     500, region_table, true_W, true_b, train_mixture, feature_noise=0.2
@@ -1623,6 +1834,10 @@ X_train, y_train, train_region_ids = make_sparse_regression_data(
 ```
 
 Test:
+
+Action:
+
+Run this immediately after the shifted test-mixture/noise setup.
 
 ```python
 X_test, y_test, test_region_ids = make_sparse_regression_data(
@@ -1752,13 +1967,47 @@ logits:     [examples, classes]
 
 Type the import and training loop into `experiments.ipynb`.
 
+Run the classification data-generation cell first, then run this training loop.
+
+Classification data-generation cell:
+
+Action:
+
+Run this in `experiments.ipynb` before the global softmax training loop.
+
+```python
+num_classes = 3
+true_class_W, true_class_b = make_region_class_rules(
+    num_regions, num_features, num_classes
+)
+X, y, region_ids = make_sparse_classification_data(
+    500, region_table, true_class_W, true_class_b, mixture
+)
+(
+    X_train,
+    y_train,
+    train_region_ids,
+    X_test,
+    y_test,
+    test_region_ids,
+) = train_test_split_with_regions(X, y, region_ids)
+```
+
 Use logits directly.
 
 Do not manually apply softmax before `torch.nn.functional.cross_entropy`.
 
+Action:
+
+Run this import if it has not already been run in the notebook import cell.
+
 ```python
 import torch.nn.functional as F
 ```
+
+Action:
+
+Run this training loop in `experiments.ipynb`.
 
 ```python
 W = torch.randn(num_features, num_classes, requires_grad=True)
@@ -1781,11 +2030,34 @@ def accuracy(logits, y):
     return (predictions == y).float().mean()
 ```
 
+Evaluation:
+
+Action:
+
+Run this in `experiments.ipynb` immediately after the global softmax training loop.
+
+```python
+with torch.no_grad():
+    train_logits = X_train @ W + b
+    test_logits = X_test @ W + b
+    train_acc = accuracy(train_logits, y_train)
+    test_acc = accuracy(test_logits, y_test)
+
+print("global train accuracy:", train_acc.item())
+print("global test accuracy:", test_acc.item())
+```
+
 ### 15.5 Routed Softmax Classifier
 
 Type the expert parameter initialization into `experiments.ipynb`.
 
+Run this after the global softmax classifier baseline works.
+
 Expert parameter shapes:
+
+Action:
+
+Run this in `experiments.ipynb`.
 
 ```python
 expert_W = torch.randn(
@@ -1816,6 +2088,8 @@ Training:
 
 Type this loop into `experiments.ipynb`.
 
+Run this loop after `routed_classification_logits` exists in `models.py`.
+
 ```python
 for epoch in range(200):
     route_ids = similarity_routes(X_train, region_table)
@@ -1843,6 +2117,10 @@ logits -> softmax -> probabilities
 
 Do not do this during training:
 
+Action:
+
+Do not run this. It is shown as an anti-example.
+
 ```python
 loss = F.cross_entropy(torch.softmax(logits, dim=1), y)
 ```
@@ -1863,6 +2141,10 @@ Compare:
 - oracle-routed classifier
 - random-routed classifier
 - similarity-routed classifier
+
+Run checkpoint:
+
+Do not move to top-2 routing until the global classifier and similarity-routed classifier both run without shape errors.
 
 ## 16. Phase 10: Top-2 Routing
 
@@ -1914,6 +2196,10 @@ top-2 oracle plus one distractor
 top-2 random routing
 ```
 
+Action:
+
+Run these as experiment variants in `experiments.ipynb` after `top2_routed_predict_regression` exists in `models.py`. This section is not one standalone cell; it tells you which variants to compare.
+
 ### 16.5 What To Learn
 
 Top-2 may help when routing is uncertain.
@@ -1944,6 +2230,12 @@ local participation x global salience
 ```
 
 ### 17.2 Simple Batch-Level Gate In `experiments.ipynb`
+
+Run this only after ordinary routed regression training works. This is an experiment variant, not required for the first successful baseline.
+
+Action:
+
+Do not run this as a standalone cell unless `route_ids`, `expert_W`, and `expert_b` already exist from the current experiment. Usually, insert this logic inside a modified routed training loop, replacing the ordinary `loss.backward()` and `sgd(...)` part.
 
 ```python
 threshold = 0.5
@@ -2043,6 +2335,10 @@ Use every 20 epochs:
 
 Type this call into the relevant training loop in `experiments.ipynb`.
 
+Action:
+
+Do not run this snippet by itself. Insert it inside the training loop variant where you are testing homeostatic scaling, then run that whole training loop.
+
 ```python
 if epoch % 20 == 0:
     rescale_expert_weights(expert_W, target_norm=1.0)
@@ -2078,6 +2374,10 @@ A replay buffer stores some old examples.
 During later training, you mix old examples with current examples so the model does not only train on the newest distribution.
 
 ### 19.2 Simple Replay Buffer In `train.py`
+
+Action:
+
+Type and save this in `train.py`. Do not run `train.py`. Keep both code blocks inside the same `ReplayBuffer` class indentation.
 
 ```python
 class ReplayBuffer:
@@ -2120,6 +2420,10 @@ Compare:
 without replay: old-region performance after new-region training
 with replay: old-region performance after new-region training
 ```
+
+Action:
+
+Run this later as an experiment variant in `experiments.ipynb` after the ordinary shifted-distribution experiment works. This section is not one standalone cell yet.
 
 ### 19.4 What To Learn
 
@@ -2257,6 +2561,10 @@ Next experiment:
 
 Before asking for help, print:
 
+Action:
+
+Run these snippets in `experiments.ipynb` only when debugging.
+
 ```python
 print("X", X.shape)
 print("y", y.shape)
@@ -2282,6 +2590,10 @@ print("loss", loss.item())
 ```
 
 Check gradients:
+
+Action:
+
+Run this only when debugging gradients. Run it before `sgd(...)`; otherwise the gradient may already have been cleared. Avoid running it repeatedly on the same loss unless you know you want gradient accumulation.
 
 ```python
 loss.backward()

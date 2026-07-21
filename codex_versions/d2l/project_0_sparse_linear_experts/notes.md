@@ -1,0 +1,1 @@
+* torch.randperm(n): Creates a random permutation/rearrangement of the integers from 0 to n-1; e.g. [0, 3, 1, 2, 4] for n=5
