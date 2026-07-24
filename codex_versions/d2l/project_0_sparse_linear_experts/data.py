@@ -87,3 +87,19 @@ def make_sparse_regression_data(
     y = y + torch.randn(num_examples) * label_noise
 
     return X, y, region_ids
+
+# Splitting training regions into batches
+def train_test_split_with_regions(X, y, region_ids, train_fraction=0.8):
+    n = X.shape[0]
+    shuffled = torch.randperm(n)
+    train_size = int(n * train_fraction)
+    train_idx = shuffled[:train_size]
+    test_idx = shuffled[train_size:]
+    return (
+        X[train_idx],
+        y[train_idx],
+        region_ids[train_idx],
+        X[test_idx],
+        y[test_idx],
+        region_ids[test_idx],
+    )
