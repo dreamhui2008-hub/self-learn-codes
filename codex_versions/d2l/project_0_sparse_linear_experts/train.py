@@ -13,3 +13,6 @@ def sgd(params, lr):
             
             # Clear the gradient so it doesn't accumulate on the next backward pass.
             p.grad.zero_()
+
+def l2_penalty(w):
+    return (w ** 2).sum() / 2

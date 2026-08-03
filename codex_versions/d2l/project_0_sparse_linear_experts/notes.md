@@ -289,6 +289,17 @@ If global model matches routed experts:
 If all models fail:
 > * The learning rate, data, labels, or loss code may be broken.
 
+# 13.4 What To Learn
+* Weight decay usually increases training loss slightly.
+* It can improve test loss if the model was overfitting.
+* It can hurt if the task needs large weights or the model was not overfitting.
+
+# 13.5 Common Confusion Points
+* Weight decay is not dropout.
+* Weight decay is not a learning rate.
+* Weight decay changes the objective.
+* A smaller weight norm is not automatically better.
+
 ## Stopping Point
 
 Date: 2026-08-03
