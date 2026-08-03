@@ -16,7 +16,8 @@ Each project should be dense but bounded.
 
 Every project must include:
 
-- a from-scratch version before the concise framework version
+- a tiny from-scratch drill only when a mechanism is new and worth exposing
+- a production-shaped library/module version for the main experiment
 - explicit tensor shapes
 - explicit train/test split logic
 - at least one baseline
@@ -30,8 +31,87 @@ Every project should avoid:
 
 - chasing leaderboard performance
 - adding architecture complexity before the simple version is understood
-- using library magic before the manual version exists
+- using library magic before the mechanism is explained
+- keeping hand-written mechanics in large experiments after the mechanism is understood
 - building product polish before the learning mechanism works
+
+## Project Tutorial Design Standard
+
+Starting with Project 0 Phase 15, and for all future projects, tutorials must be mechanically explicit. The student should not have to infer missing glue code, hidden execution order, or notebook state from qualitative directions.
+
+Do not treat a tutorial draft as complete just because the concept is described. Before asking the student to type or run a section, check whether all required functions, imports, helpers, data variables, and evaluation blocks exist. If glue code is missing, the tutorial must identify it before the student reaches the experiment.
+
+Each phase must use three layers:
+
+```text
+Concept
+Small mechanical drill
+Full experiment cell
+```
+
+The concept layer explains the idea in plain language. The drill layer uses tiny tensors or short snippets to build syntax and shape fluency. The full experiment layer gives a complete runnable block or a clear call to a reusable helper.
+
+Each phase must include a syntax preflight before any large block. If a phase uses mechanics such as `torch.bincount`, `torch.argmax`, `F.cross_entropy`, boolean masks, `torch.no_grad`, optimizer objects, reshaping, indexing, or route IDs, those mechanics should appear first in 5-10 line drills. New syntax should not first appear inside a large experiment cell.
+
+Use PyTorch library code where appropriate. Manual implementations are useful when the lesson is specifically about internals, but production-shaped code should prefer standard PyTorch APIs such as `torch.nn.functional.mse_loss`, `torch.nn.functional.cross_entropy`, and `torch.optim.SGD` once the concept has been taught.
+
+For future projects after Project 0, do not keep using hand-written losses, manual optimizers, or notebook-local helper code after the mechanism has been introduced. The teaching flow should be:
+
+```text
+manual miniature version -> explain the mechanism -> production-shaped library/module version
+```
+
+For example, hand-written MSE and SGD are acceptable in an early mechanics drill. Later experiment cells should usually use `torch.nn.functional.mse_loss`, `torch.nn.functional.cross_entropy`, `torch.optim.SGD`, `torch.utils.data.DataLoader`, and project-local helper modules unless the phase is explicitly about implementing the internals.
+
+Keep `experiments.ipynb` small and readable. Repeated logic belongs in project modules:
+
+```text
+data.py
+router.py
+models.py
+train.py
+metrics.py
+```
+
+The notebook should mostly run setup cells, tiny drills, experiment calls, and notes. It should not become a long-term storage place for duplicated helper functions.
+
+Large experiment cells must include a mechanics memo. For every nontrivial line or small block, place a short comment immediately above it explaining what state is created or changed, what tensor shape is expected, what mutation happens, or why a branch exists. Avoid comments that merely rename the line. Prefer comments like:
+
+```python
+# Mechanically, ReplayBuffer owns two Python lists: buffer.X and buffer.y.
+# max_size=300 means after adding examples, it keeps only the most recent 300.
+buffer = ReplayBuffer(max_size=300)
+```
+
+Do not write vague comments like:
+
+```python
+# Create a replay buffer.
+buffer = ReplayBuffer(max_size=300)
+```
+
+Every phase must provide exact run order:
+
+```text
+Step 1: edit this file
+Step 2: rerun the import cell
+Step 3: run this drill cell
+Step 4: run this experiment cell
+Step 5: write this checkpoint answer
+```
+
+Avoid vague phrases such as "run the same loop", "record these metrics", "insert where appropriate", or "try this variant" unless the exact insertion point and full executable context are shown.
+
+Every phase must include expected outputs and failure checks:
+
+- expected shapes
+- expected rough metric pattern
+- common stale-import error
+- common shape error
+- common route ID error
+- what result would be suspicious
+
+Scope should slow down when mechanics become new. If a project phase introduces several unfamiliar APIs or tensor patterns at once, add a bridge/tutorial section before the full project experiment. The expectation is that the student enters the main experiment with high-level understanding and enough mechanical fluency to read the code, not that they learn every new syntax item inside one large block.
 
 ## Roadmap Shape
 

@@ -2217,37 +2217,187 @@ That is distribution shift in mechanical form.
 
 ## 15. Phase 9: Classification Version
 
-### 15.1 Intuition
+### 15.0 Why This Phase Is More Structured
 
-Regression predicts a number.
+From this point forward, each phase uses the same pattern:
 
-Classification predicts a class.
+```text
+concept -> syntax preflight -> file edits -> exact experiment cell -> checkpoint
+```
 
-The routed idea is the same:
+Do not infer missing glue code. If a section says to run an experiment, the full cell appears in that section.
+
+### 15.1 Goal
+
+Regression predicts one number.
+
+Classification predicts one class.
+
+The routed idea stays the same:
 
 ```text
 route input -> selected classifier expert -> logits -> cross-entropy -> update
 ```
 
-### 15.2 Region-Specific Classification Rules In `data.py`
+New mechanics in this phase:
+
+- `logits`
+- integer class labels
+- `argmax(dim=1)`
+- `F.cross_entropy`
+- `torch.bincount`
+- routed classifier weight shape `[regions, features, classes]`
+
+### 15.2 Exact Run Order
+
+Use this order:
+
+```text
+1. Run the notebook import/reload cell.
+2. Run the logits/argmax drill.
+3. Run the cross-entropy drill.
+4. Run the bincount drill.
+5. Add classification helpers to data.py.
+6. Add classification helpers to models.py and metrics.py.
+7. Rerun the notebook import/reload cell.
+8. Run the classification data-shape drill.
+9. Run the full classification experiment cell.
+10. Write the checkpoint answers in notes.md.
+```
+
+### 15.3 Syntax Preflight: Logits And `argmax`
+
+Purpose:
+
+Understand classification output shapes before routing is involved.
+
+Action:
+
+Run this in `experiments.ipynb`.
 
 ```python
-def make_region_class_rules(num_regions, num_features, num_classes):
-    true_W = torch.randn(num_regions, num_features, num_classes)
-    true_b = torch.randn(num_regions, num_classes)
-    return true_W, true_b
+X_small = torch.randn(5, 6)       # [batch, features]
+W_small = torch.randn(6, 3)       # [features, classes]
+b_small = torch.zeros(3)          # [classes]
+
+logits = X_small @ W_small + b_small
+pred_classes = logits.argmax(dim=1)
+
+print("X_small:", X_small.shape)
+print("W_small:", W_small.shape)
+print("logits:", logits.shape)
+print("pred_classes:", pred_classes.shape)
+print(pred_classes)
+```
+
+Expected shape pattern:
+
+```text
+X_small: torch.Size([5, 6])
+W_small: torch.Size([6, 3])
+logits: torch.Size([5, 3])
+pred_classes: torch.Size([5])
+```
+
+Mechanical meaning:
+
+- `logits[i]` contains one raw score per class for example `i`.
+- `argmax(dim=1)` picks the highest-scoring class across columns.
+- `dim=1` is the class dimension because `logits` has shape `[batch, classes]`.
+
+### 15.4 Syntax Preflight: Cross Entropy
+
+Purpose:
+
+Use PyTorch's classification loss directly.
+
+Action:
+
+Run this in `experiments.ipynb` after the logits drill.
+
+```python
+labels = torch.tensor([0, 2, 1, 1, 0])
+loss = F.cross_entropy(logits, labels)
+
+print("labels:", labels.shape)
+print("loss:", loss)
 ```
 
 Shape contract:
 
 ```text
-true_W: [regions, features, classes]
-true_b: [regions, classes]
+logits: [batch, classes]
+labels: [batch]
+loss: scalar
 ```
 
-### 15.3 Generate Classification Data In `data.py`
+Important:
+
+- `F.cross_entropy` expects raw logits.
+- Do not apply softmax before `F.cross_entropy`.
+- labels must be integer class IDs such as `0`, `1`, `2`.
+
+Anti-example:
+
+Do not train with this:
 
 ```python
+loss = F.cross_entropy(torch.softmax(logits, dim=1), labels)
+```
+
+That applies probability conversion before a function that already handles the needed log-softmax step internally.
+
+### 15.5 Syntax Preflight: `torch.bincount`
+
+Purpose:
+
+Understand region usage counts before they appear in the experiment table.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+routes_small = torch.tensor([0, 2, 2, 1, 0, 3, 3, 3])
+usage_small = torch.bincount(routes_small, minlength=4)
+
+print("routes_small:", routes_small)
+print("usage_small:", usage_small)
+```
+
+Expected output:
+
+```text
+usage_small: tensor([2, 1, 2, 3])
+```
+
+Mechanical meaning:
+
+- region `0` appears 2 times
+- region `1` appears 1 time
+- region `2` appears 2 times
+- region `3` appears 3 times
+
+### 15.6 File Edit: Classification Data In `data.py`
+
+Action:
+
+Add these functions to `data.py`.
+
+```python
+def make_region_class_rules(num_regions, num_features, num_classes):
+    # Create one hidden class-weight matrix per region.
+    # Shape: [regions, features, classes]
+    true_W = torch.randn(num_regions, num_features, num_classes)
+
+    # Create one hidden class-bias vector per region.
+    # Shape: [regions, classes]
+    true_b = torch.randn(num_regions, num_classes)
+
+    # These are answer-key parameters used to generate labels, not trained parameters.
+    return true_W, true_b
+
+
 def make_sparse_classification_data(
     num_examples,
     region_table,
@@ -2256,49 +2406,641 @@ def make_sparse_classification_data(
     mixture,
     feature_noise=0.3,
 ):
+    # region_table shape is [regions, features].
+    # Unpack those dimensions so the rest of the function stays shape-driven.
     num_regions, num_features = region_table.shape
-    region_ids = torch.multinomial(mixture, num_examples, replacement=True)
-    X = region_table[region_ids] + torch.randn(num_examples, num_features) * feature_noise
-    logits = torch.zeros(num_examples, true_b.shape[1])
 
+    # Sample one true region ID per example using the mixture probabilities.
+    # Shape: [num_examples]
+    region_ids = torch.multinomial(mixture, num_examples, replacement=True)
+
+    # Build input rows near their assigned region prototype.
+    # region_table[region_ids] shape: [num_examples, features]
+    # noise shape: [num_examples, features]
+    # X shape: [num_examples, features]
+    X = region_table[region_ids] + torch.randn(num_examples, num_features) * feature_noise
+
+    # Allocate the hidden logits table that will become class labels.
+    # true_W.shape[2] is num_classes.
+    # logits shape: [num_examples, classes]
+    logits = torch.zeros(num_examples, true_W.shape[2])
+
+    # Fill logits region by region so each example uses its own region's hidden rule.
     for r in range(num_regions):
+        # mask shape: [num_examples]
+        # True entries mark examples whose hidden region is r.
         mask = region_ids == r
+
+        # Skip empty regions so X[mask] never becomes an empty training block here.
         if mask.any():
+            # X[mask] shape: [examples_for_r, features]
+            # true_W[r] shape: [features, classes]
+            # true_b[r] shape: [classes]
+            # logits[mask] shape: [examples_for_r, classes]
             logits[mask] = X[mask] @ true_W[r] + true_b[r]
 
+    # Convert hidden class scores into integer class IDs.
+    # y shape: [num_examples]
     y = logits.argmax(dim=1)
+
+    # Return inputs, class labels, and true synthetic region IDs.
     return X, y, region_ids
 ```
 
 Shape contract:
 
 ```text
+true_W:     [regions, features, classes]
+true_b:     [regions, classes]
 X:          [examples, features]
 y:          [examples]
 region_ids: [examples]
 logits:     [examples, classes]
 ```
 
-### 15.4 Global Softmax Classifier
+Why this exists:
 
-Type the import and training loop into `experiments.ipynb`.
+- The synthetic classification data still has hidden regions.
+- Each region has its own hidden classifier.
+- The target label is the class with the highest hidden logit.
 
-Run the classification data-generation cell first, then run this training loop.
-
-Classification data-generation cell:
+### 15.7 File Edit: Classification Model In `models.py`
 
 Action:
 
-Run this in `experiments.ipynb` before the global softmax training loop.
+Add this function to `models.py`.
 
 ```python
+def routed_classification_logits(X, expert_W, expert_b, route_ids):
+    # X shape: [batch, features].
+    # The output needs one row of class scores per input row.
+    num_examples = X.shape[0]
+
+    # expert_b shape is [regions, classes], so dimension 1 is num_classes.
+    num_classes = expert_b.shape[1]
+
+    # Allocate output logits before filling routed rows.
+    # Shape: [batch, classes]
+    logits = torch.zeros(num_examples, num_classes)
+
+    # Loop over each expert/region ID.
+    for r in range(expert_W.shape[0]):
+        # Select examples routed to expert r.
+        # mask shape: [batch]
+        mask = route_ids == r
+
+        # Only compute for experts that actually received examples.
+        if mask.any():
+            # X[mask] shape: [examples_for_r, features]
+            # expert_W[r] shape: [features, classes]
+            # expert_b[r] shape: [classes]
+            # logits[mask] shape: [examples_for_r, classes]
+            logits[mask] = X[mask] @ expert_W[r] + expert_b[r]
+
+    # Return raw class scores, not softmax probabilities.
+    return logits
+```
+
+Shape contract:
+
+```text
+X:        [batch, features]
+expert_W: [regions, features, classes]
+expert_b: [regions, classes]
+route_ids: [batch]
+logits:   [batch, classes]
+```
+
+Comparison with routed regression:
+
+```text
+regression expert_W[r]:     [features]
+classification expert_W[r]: [features, classes]
+
+regression output:          [batch]
+classification output:      [batch, classes]
+```
+
+### 15.8 File Edit: Accuracy In `metrics.py`
+
+Action:
+
+Add this function to `metrics.py`.
+
+```python
+def accuracy(logits, y):
+    predictions = logits.argmax(dim=1)
+    return (predictions == y).float().mean()
+```
+
+Then rerun the notebook import/reload cell.
+
+Expected import output:
+
+```text
+No SKIP lines for:
+data.make_region_class_rules
+data.make_sparse_classification_data
+models.routed_classification_logits
+metrics.accuracy
+```
+
+If those names still show `SKIP`, the notebook is using stale imports or the function was not added to the expected file.
+
+### 15.9 Data Shape Drill
+
+Action:
+
+Run this in `experiments.ipynb` after editing files and rerunning the import cell.
+
+```python
+torch.manual_seed(0)
+
+num_regions = 4
+num_features = 6
 num_classes = 3
-true_class_W, true_class_b = make_region_class_rules(
+
+region_table = make_region_table(num_regions, num_features)
+true_W_class, true_b_class = make_region_class_rules(
     num_regions, num_features, num_classes
 )
-X, y, region_ids = make_sparse_classification_data(
-    500, region_table, true_class_W, true_class_b, mixture
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+X_cls, y_cls, region_ids_cls = make_sparse_classification_data(
+    20, region_table, true_W_class, true_b_class, mixture
 )
+
+print("X_cls:", X_cls.shape)
+print("y_cls:", y_cls.shape)
+print("region_ids_cls:", region_ids_cls.shape)
+print("labels:", y_cls[:10])
+```
+
+Expected shape pattern:
+
+```text
+X_cls: torch.Size([20, 6])
+y_cls: torch.Size([20])
+region_ids_cls: torch.Size([20])
+```
+
+Suspicious output:
+
+- `y_cls` has shape `[20, 3]`: labels are wrong; labels should be class IDs, not one-hot rows.
+- label values are outside `0..2`: `num_classes` or label generation is wrong.
+
+### 15.10 Full Classification Experiment Cell
+
+Purpose:
+
+Compare global classification against oracle, random, and similarity-routed classifier experts.
+
+Action:
+
+Run this as one cell in `experiments.ipynb`.
+
+```python
+# 15.10 Full Classification Experiment Cell
+
+# Fix PyTorch randomness so the generated data and initialization are repeatable.
+torch.manual_seed(0)
+
+# Use four synthetic regions, so valid expert IDs are 0, 1, 2, and 3.
+num_regions = 4
+
+# Each input example has six numeric features, so X rows have length 6.
+num_features = 6
+
+# Each classifier predicts one of three possible classes: 0, 1, or 2.
+num_classes = 3
+
+# Build the routing prototypes.
+# Shape: [4, 6], one six-feature prototype vector per region.
+region_table = make_region_table(num_regions, num_features)
+
+# Build the hidden answer-key classifier for each region.
+# true_W_class shape: [4, 6, 3]
+# true_b_class shape: [4, 3]
+true_W_class, true_b_class = make_region_class_rules(
+    num_regions, num_features, num_classes
+)
+
+# Balanced mixture means each synthetic region is sampled with equal probability.
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+# Generate 500 classification examples.
+# X_cls shape: [500, 6]
+# y_cls shape: [500], with integer class IDs in 0..2
+# region_ids_cls shape: [500], with true synthetic region IDs in 0..3
+X_cls, y_cls, region_ids_cls = make_sparse_classification_data(
+    500, region_table, true_W_class, true_b_class, mixture
+)
+
+# Split X, y, and region IDs together so every row keeps its matching label and region.
+(
+    X_train,
+    y_train,
+    train_region_ids,
+    X_test,
+    y_test,
+    test_region_ids,
+) = train_test_split_with_regions(X_cls, y_cls, region_ids_cls)
+
+
+# Train one global softmax classifier.
+# This baseline has no experts and no routing; one W,b pair must fit all regions.
+def run_global_classifier():
+    # W maps six input features to three class logits.
+    # Shape: [features, classes] = [6, 3]
+    W = torch.randn(num_features, num_classes, requires_grad=True)
+
+    # b has one bias per class.
+    # Shape: [classes] = [3]
+    b = torch.zeros(num_classes, requires_grad=True)
+
+    # Run 200 full-batch SGD steps on the training set.
+    for epoch in range(200):
+        # Compute raw class scores.
+        # X_train shape: [train_examples, 6]
+        # W shape: [6, 3]
+        # logits shape: [train_examples, 3]
+        logits = X_train @ W + b
+
+        # Cross entropy compares raw logits against integer class labels.
+        # y_train shape: [train_examples]
+        # loss is a scalar.
+        loss = F.cross_entropy(logits, y_train)
+
+        # Compute gradients for W and b from the scalar loss.
+        loss.backward()
+
+        # Apply one manual SGD update and clear gradients.
+        sgd([W, b], lr=0.05)
+
+    # Evaluation should not build a gradient graph.
+    with torch.no_grad():
+        # Recompute logits on train and test data using the final W,b.
+        train_logits = X_train @ W + b
+        test_logits = X_test @ W + b
+
+        # accuracy() uses argmax(dim=1) internally to convert logits to classes.
+        train_acc = accuracy(train_logits, y_train)
+        test_acc = accuracy(test_logits, y_test)
+
+        # Keep test cross-entropy too, because accuracy hides confidence mistakes.
+        test_loss = F.cross_entropy(test_logits, y_test)
+
+    # Convert scalar tensors to Python floats for table printing.
+    return train_acc.item(), test_acc.item(), test_loss.item()
+
+
+# Train one routed classifier condition.
+# routing_type decides where route_ids come from.
+def run_routed_classifier(routing_type):
+    # Create one classifier weight matrix per expert.
+    # Shape: [regions, features, classes] = [4, 6, 3]
+    expert_W = torch.randn(
+        num_regions, num_features, num_classes, requires_grad=True
+    )
+
+    # Create one class-bias vector per expert.
+    # Shape: [regions, classes] = [4, 3]
+    expert_b = torch.zeros(num_regions, num_classes, requires_grad=True)
+
+    # Train the routed experts for 200 full-batch epochs.
+    for epoch in range(200):
+        # Oracle routing uses the synthetic answer-key region IDs.
+        # This is only possible in synthetic experiments.
+        if routing_type == "oracle":
+            route_ids = train_region_ids
+
+        # Random routing ignores X and assigns each example to a random expert.
+        # route_ids shape: [train_examples]
+        elif routing_type == "random":
+            route_ids = random_routes(X_train.shape[0], num_regions)
+
+        # Similarity routing computes route IDs from X_train and region_table.
+        # route_ids shape: [train_examples]
+        elif routing_type == "similarity":
+            route_ids = similarity_routes(X_train, region_table)
+
+        # Compute routed logits.
+        # Each example is processed by exactly one expert selected by route_ids.
+        # logits shape: [train_examples, 3]
+        logits = routed_classification_logits(
+            X_train, expert_W, expert_b, route_ids
+        )
+
+        # Train against integer class labels.
+        loss = F.cross_entropy(logits, y_train)
+
+        # Backprop through only the expert rows used by the routed forward pass.
+        loss.backward()
+
+        # Update expert_W/expert_b and clear gradients.
+        sgd([expert_W, expert_b], lr=0.05)
+
+    # Evaluate the trained routed classifier.
+    with torch.no_grad():
+        # For oracle evaluation, test routes are the true synthetic test regions.
+        if routing_type == "oracle":
+            train_routes = train_region_ids
+            test_routes = test_region_ids
+            router_acc = 1.0
+
+        # For random evaluation, create fresh random routes for train/test.
+        elif routing_type == "random":
+            train_routes = random_routes(X_train.shape[0], num_regions)
+            test_routes = random_routes(X_test.shape[0], num_regions)
+
+            # Router accuracy compares random routes against true test region IDs.
+            router_acc = (test_routes == test_region_ids).float().mean().item()
+
+        # For similarity evaluation, route each row by cosine similarity.
+        elif routing_type == "similarity":
+            train_routes = similarity_routes(X_train, region_table)
+            test_routes = similarity_routes(X_test, region_table)
+
+            # Router accuracy measures how often similarity recovers the true synthetic region.
+            router_acc = (test_routes == test_region_ids).float().mean().item()
+
+        # Compute train logits using the chosen train routes.
+        train_logits = routed_classification_logits(
+            X_train, expert_W, expert_b, train_routes
+        )
+
+        # Compute test logits using the chosen test routes.
+        test_logits = routed_classification_logits(
+            X_test, expert_W, expert_b, test_routes
+        )
+
+        # Convert logits to accuracy metrics.
+        train_acc = accuracy(train_logits, y_train)
+        test_acc = accuracy(test_logits, y_test)
+
+        # Keep test cross-entropy as a loss metric.
+        test_loss = F.cross_entropy(test_logits, y_test)
+
+        # Count how many train examples each expert handled.
+        # train_routes shape: [train_examples]
+        # region_usage length: 4
+        region_usage = torch.bincount(train_routes, minlength=num_regions).tolist()
+
+    # Return one table row worth of metrics.
+    return train_acc.item(), test_acc.item(), test_loss.item(), router_acc, region_usage
+
+
+# Accumulate rows before printing so all conditions share one output format.
+results = []
+
+# Run the global baseline first.
+train_acc, test_acc, test_loss = run_global_classifier()
+
+# Global has no router, so router_accuracy and region_usage are None.
+results.append([
+    "global classifier",
+    "none",
+    train_acc,
+    test_acc,
+    test_loss,
+    None,
+    None,
+])
+
+# Run the same routed classifier code with three route sources.
+for routing_type in ["oracle", "random", "similarity"]:
+    # Train and evaluate a fresh routed classifier for this routing_type.
+    train_acc, test_acc, test_loss, router_acc, region_usage = run_routed_classifier(
+        routing_type
+    )
+
+    # Store the result row.
+    results.append([
+        "routed classifier",
+        routing_type,
+        train_acc,
+        test_acc,
+        test_loss,
+        router_acc,
+        region_usage,
+    ])
+
+# Print the comparison table one row at a time.
+for row in results:
+    print(row)
+```
+
+Output columns:
+
+```text
+model_type | routing_type | train_accuracy | test_accuracy | test_loss | router_accuracy | region_usage
+```
+
+Expected rough pattern:
+
+- Random class baseline is about `1 / 3 = 0.333`.
+- Oracle routed should usually be strong.
+- Similarity routed should be better than random if router accuracy is high.
+- Global classifier may be weaker than good routed experts because one classifier is trying to fit multiple region-specific rules.
+
+Failure checks:
+
+- `NameError: make_region_class_rules`: rerun import cell after editing `data.py`.
+- `NameError: routed_classification_logits`: rerun import cell after editing `models.py`.
+- `RuntimeError` from `F.cross_entropy`: check `logits.shape == [batch, classes]` and `y.shape == [batch]`.
+- `IndexError: Target ... is out of bounds`: check labels are integers in `[0, num_classes - 1]`.
+
+### 15.11 Checkpoint
+
+You are ready to move on when you can explain:
+
+- why classification labels have shape `[batch]`
+- why logits have shape `[batch, classes]`
+- why `F.cross_entropy(logits, y)` receives raw logits
+- why `argmax(dim=1)` converts logits into predicted class IDs
+- how routed classification differs from routed regression
+- why classification `expert_W` has shape `[regions, features, classes]`
+
+Suggested notes format:
+
+```markdown
+# 15 Checkpoint
+
+* why classification labels have shape [batch]
+> Each example has one correct class ID, so `y[i]` is the target class for `X[i]`.
+
+* why logits have shape [batch, classes]
+> Each example needs one raw score per possible class.
+
+* why F.cross_entropy receives raw logits
+> PyTorch's cross entropy applies the needed log-softmax internally, so passing softmax probabilities would duplicate that step.
+
+* why argmax(dim=1) gives predictions
+> `dim=1` is the class dimension, so argmax picks the highest-scoring class for each example.
+
+* how routed classification differs from routed regression
+> Routed regression returns one number per example. Routed classification returns one vector of class scores per example.
+
+* why expert_W is [regions, features, classes]
+> Each region has one classifier expert. For region `r`, `expert_W[r]` maps input features to class logits, so it has shape `[features, classes]`.
+```
+
+## 16. Phase 10: Top-2 Routing
+
+### 16.1 Goal
+
+Top-1 routing chooses one expert.
+
+Top-2 routing chooses two experts and averages their predictions.
+
+This phase asks a concrete question:
+
+```text
+Does activating more experts help, or does the extra expert add noise?
+```
+
+### 16.2 Exact Run Order
+
+Use this order:
+
+```text
+1. Run the notebook import/reload cell.
+2. Run the top-k shape drill.
+3. Add top2_routed_predict_regression to models.py.
+4. Rerun the notebook import/reload cell.
+5. Run the full top-1 vs top-2 experiment cell.
+6. Write the checkpoint answers in notes.md.
+```
+
+### 16.3 Syntax Preflight: `route_topk(..., k=2)`
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+torch.manual_seed(0)
+
+X_small = torch.randn(5, 6)
+region_table_small = make_region_table(4, 6)
+
+top_ids, top_scores, scores = route_topk(X_small, region_table_small, k=2)
+
+print("X_small:", X_small.shape)
+print("region_table_small:", region_table_small.shape)
+print("scores:", scores.shape)
+print("top_ids:", top_ids.shape)
+print("top_scores:", top_scores.shape)
+print(top_ids)
+```
+
+Expected shape pattern:
+
+```text
+scores: torch.Size([5, 4])
+top_ids: torch.Size([5, 2])
+top_scores: torch.Size([5, 2])
+```
+
+Mechanical meaning:
+
+- `top_ids[i, 0]` is the best expert for example `i`.
+- `top_ids[i, 1]` is the second-best expert for example `i`.
+- `top_ids[:, 0]` is a `[batch]` vector of first-choice routes.
+- `top_ids[:, 1]` is a `[batch]` vector of second-choice routes.
+
+### 16.4 File Edit: Top-2 Regression Predictor In `models.py`
+
+Action:
+
+Add this function to `models.py`.
+
+```python
+def top2_routed_predict_regression(X, expert_W, expert_b, region_table):
+    # Ask the router for the best two experts per input row.
+    # top_ids shape: [batch, 2]
+    top_ids, _, _ = route_topk(X, region_table, k=2)
+
+    # Allocate two prediction columns per example.
+    # Column 0 stores the first expert's prediction.
+    # Column 1 stores the second expert's prediction.
+    # preds shape: [batch, 2]
+    preds = torch.zeros(X.shape[0], 2)
+
+    # j selects which top-k slot we are filling: 0 for best expert, 1 for second-best.
+    for j in range(2):
+        # Pull one route column out of top_ids.
+        # route_ids shape: [batch]
+        route_ids = top_ids[:, j]
+
+        # For this route column, compute predictions expert by expert.
+        for r in range(expert_W.shape[0]):
+            # mask selects examples whose j-th route is expert r.
+            mask = route_ids == r
+
+            # Skip experts that no examples selected in this slot.
+            if mask.any():
+                # X[mask] shape: [examples_for_r, features]
+                # expert_W[r] shape: [features]
+                # preds[mask, j] shape: [examples_for_r]
+                preds[mask, j] = X[mask] @ expert_W[r] + expert_b[r]
+
+    # Average the two expert predictions for each example.
+    # preds.mean(dim=1) shape: [batch]
+    return preds.mean(dim=1), top_ids
+```
+
+Then rerun the notebook import/reload cell.
+
+Expected import output:
+
+```text
+No SKIP line for models.top2_routed_predict_regression
+```
+
+### 16.5 Full Top-1 Vs Top-2 Experiment Cell
+
+Purpose:
+
+Train the usual similarity-routed regression experts, then evaluate the same trained experts with top-1 and top-2 prediction.
+
+Action:
+
+Run this as one cell in `experiments.ipynb`.
+
+```python
+# 16.5 Top-1 vs Top-2 Regression Experiment
+
+# Fix randomness so the data, initialization, and routes are reproducible.
+torch.manual_seed(0)
+
+# Use four routed regression experts.
+num_regions = 4
+
+# Each input row has six features.
+num_features = 6
+
+# Create the router's prototype table.
+# Shape: [4, 6]
+region_table = make_region_table(num_regions, num_features)
+
+# Create the hidden true regression rule for each synthetic region.
+# true_W shape: [4, 6]
+# true_b shape: [4]
+true_W, true_b = make_region_rules(num_regions, num_features)
+
+# Generate a balanced dataset so every region should appear often enough.
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+# Generate one multi-region regression dataset.
+# X shape: [500, 6]
+# y shape: [500]
+# region_ids shape: [500]
+X, y, region_ids = make_sparse_regression_data(
+    500, region_table, true_W, true_b, mixture
+)
+
+# Split examples, labels, and true region IDs together.
 (
     X_train,
     y_train,
@@ -2307,461 +3049,1042 @@ X, y, region_ids = make_sparse_classification_data(
     y_test,
     test_region_ids,
 ) = train_test_split_with_regions(X, y, region_ids)
-```
 
-Use logits directly.
+# Create trainable expert weights.
+# Shape: [regions, features] = [4, 6]
+expert_W = torch.randn(num_regions, num_features, requires_grad=True)
 
-Do not manually apply softmax before `torch.nn.functional.cross_entropy`.
+# Create one trainable bias per expert.
+# Shape: [regions] = [4]
+expert_b = torch.zeros(num_regions, requires_grad=True)
 
-Action:
-
-Run this import if it has not already been run in the notebook import cell.
-
-```python
-import torch.nn.functional as F
-```
-
-Action:
-
-Run this training loop in `experiments.ipynb`.
-
-```python
-W = torch.randn(num_features, num_classes, requires_grad=True)
-b = torch.zeros(num_classes, requires_grad=True)
-
+# Train experts using ordinary top-1 similarity routing.
+# Top-2 is only used later at evaluation time in this experiment.
 for epoch in range(200):
-    logits = X_train @ W + b
-    loss = F.cross_entropy(logits, y_train)
+    # route_ids shape: [train_examples]
+    # Each value is the single nearest region/expert.
+    route_ids = similarity_routes(X_train, region_table)
+
+    # Compute MSE using only the expert selected for each training example.
+    loss = routed_regression_loss(
+        X_train, y_train, expert_W, expert_b, route_ids
+    )
+
+    # Build gradients for the active expert rows.
     loss.backward()
-    sgd([W, b], lr=0.05)
-```
 
-Accuracy:
+    # Update expert parameters and clear gradients.
+    sgd([expert_W, expert_b], lr=0.03)
 
-Type `accuracy` into `metrics.py`.
-
-```python
-def accuracy(logits, y):
-    predictions = logits.argmax(dim=1)
-    return (predictions == y).float().mean()
-```
-
-Evaluation:
-
-Action:
-
-Run this in `experiments.ipynb` immediately after the global softmax training loop.
-
-```python
+# Evaluation should not track gradients.
 with torch.no_grad():
-    train_logits = X_train @ W + b
-    test_logits = X_test @ W + b
-    train_acc = accuracy(train_logits, y_train)
-    test_acc = accuracy(test_logits, y_test)
+    # Top-1 prediction uses the same single-expert route used during training.
+    # top1_train_pred shape: [train_examples]
+    # top1_train_routes shape: [train_examples]
+    top1_train_pred, top1_train_routes = routed_predict_regression(
+        X_train, expert_W, expert_b, region_table
+    )
 
-print("global train accuracy:", train_acc.item())
-print("global test accuracy:", test_acc.item())
+    # Evaluate top-1 prediction on test examples.
+    top1_test_pred, top1_test_routes = routed_predict_regression(
+        X_test, expert_W, expert_b, region_table
+    )
+
+    # Top-2 prediction asks for two experts per example and averages their outputs.
+    # top2_train_pred shape: [train_examples]
+    # train_top2_ids shape: [train_examples, 2]
+    top2_train_pred, train_top2_ids = top2_routed_predict_regression(
+        X_train, expert_W, expert_b, region_table
+    )
+
+    # Same top-2 evaluation on test examples.
+    # test_top2_ids shape: [test_examples, 2]
+    top2_test_pred, test_top2_ids = top2_routed_predict_regression(
+        X_test, expert_W, expert_b, region_table
+    )
+
+    # Plain prediction MSE for top-1.
+    top1_train_loss = squared_loss(top1_train_pred, y_train)
+    top1_test_loss = squared_loss(top1_test_pred, y_test)
+
+    # Plain prediction MSE for top-2 averaging.
+    top2_train_loss = squared_loss(top2_train_pred, y_train)
+    top2_test_loss = squared_loss(top2_test_pred, y_test)
+
+    # Top-1 router accuracy checks whether the one selected route equals the true region.
+    top1_router_acc = (top1_test_routes == test_region_ids).float().mean()
+
+    # Top-2 router accuracy checks whether the true region appears in either slot.
+    # test_region_ids[:, None] changes [test_examples] to [test_examples, 1]
+    # so it can broadcast against test_top2_ids with shape [test_examples, 2].
+    top2_router_acc = (test_top2_ids == test_region_ids[:, None]).any(dim=1).float().mean()
+
+    # Count how many examples each expert handled under top-1 routing.
+    # Length is 4 because minlength=num_regions.
+    top1_usage = torch.bincount(top1_train_routes, minlength=num_regions).tolist()
+
+    # Count top-2 expert usage.
+    # train_top2_ids has two routes per example, so reshape(-1) flattens [batch, 2]
+    # into [batch * 2] before counting expert IDs.
+    top2_usage = torch.bincount(train_top2_ids.reshape(-1), minlength=num_regions).tolist()
+
+# Build two output rows with the same column order.
+results = [
+    [
+        "top-1 similarity",
+        top1_train_loss.item(),
+        top1_test_loss.item(),
+        top1_router_acc.item(),
+        top1_usage,
+    ],
+    [
+        "top-2 similarity average",
+        top2_train_loss.item(),
+        top2_test_loss.item(),
+        top2_router_acc.item(),
+        top2_usage,
+    ],
+]
+
+# Print the comparison rows.
+for row in results:
+    print(row)
 ```
 
-### 15.5 Routed Softmax Classifier
+Output columns:
 
-Type the expert parameter initialization into `experiments.ipynb`.
+```text
+routing_type | train_loss | test_loss | router_accuracy | region_usage
+```
 
-Run this after the global softmax classifier baseline works.
+Expected rough pattern:
 
-Expert parameter shapes:
+- Top-2 router accuracy should be at least as high as top-1 router accuracy because the correct region only needs to appear in either of two slots.
+- Top-2 prediction loss may improve or worsen.
+- If the second expert is often wrong, averaging can hurt even when top-2 router accuracy is higher.
+
+Failure checks:
+
+- `NameError: top2_routed_predict_regression`: rerun import cell after editing `models.py`.
+- `RuntimeError` around `test_region_ids[:, None]`: check that `test_region_ids` has shape `[batch]`.
+- Bad `top2_usage` length: check `minlength=num_regions`.
+
+### 16.6 Checkpoint
+
+You are ready to move on when you can explain:
+
+- why `top_ids` has shape `[batch, 2]`
+- why `top_ids[:, 0]` and `top_ids[:, 1]` each have shape `[batch]`
+- why top-2 router accuracy can improve while prediction loss gets worse
+- why "more active experts" is not automatically better
+
+## 17. Phase 11: Local Update Gate
+
+### 17.1 Goal
+
+This phase adds a crude update gate:
+
+```text
+if batch loss is high enough:
+    allow the model to update
+else:
+    skip the optimizer step
+```
+
+This is a toy version of:
+
+```text
+local participation x global salience
+```
+
+It is not biologically realistic. It is a mechanical experiment about when a system should write updates.
+
+### 17.2 Exact Run Order
+
+Use this order:
+
+```text
+1. Run the notebook import/reload cell.
+2. Run the threshold drill.
+3. Run the full gated-update experiment cell.
+4. Write the checkpoint answers in notes.md.
+```
+
+### 17.3 Syntax Preflight: Threshold Gate
 
 Action:
 
 Run this in `experiments.ipynb`.
 
 ```python
-expert_W = torch.randn(
-    num_regions, num_features, num_classes, requires_grad=True
-)
-expert_b = torch.zeros(num_regions, num_classes, requires_grad=True)
-```
-
-Routed logits:
-
-Type `routed_classification_logits` into `models.py`.
-
-```python
-def routed_classification_logits(X, expert_W, expert_b, route_ids):
-    num_examples = X.shape[0]
-    num_classes = expert_b.shape[1]
-    logits = torch.zeros(num_examples, num_classes)
-
-    for r in range(expert_W.shape[0]):
-        mask = route_ids == r
-        if mask.any():
-            logits[mask] = X[mask] @ expert_W[r] + expert_b[r]
-
-    return logits
-```
-
-Training:
-
-Type this loop into `experiments.ipynb`.
-
-Run this loop after `routed_classification_logits` exists in `models.py`.
-
-```python
-for epoch in range(200):
-    route_ids = similarity_routes(X_train, region_table)
-    logits = routed_classification_logits(
-        X_train, expert_W, expert_b, route_ids
-    )
-    loss = F.cross_entropy(logits, y_train)
-    loss.backward()
-    sgd([expert_W, expert_b], lr=0.05)
-```
-
-### 15.6 Important Softmax Confusion
-
-For learning:
-
-```text
-logits -> cross_entropy
-```
-
-For interpretation:
-
-```text
-logits -> softmax -> probabilities
-```
-
-Do not do this during training:
-
-Action:
-
-Do not run this. It is shown as an anti-example.
-
-```python
-loss = F.cross_entropy(torch.softmax(logits, dim=1), y)
-```
-
-That is conceptually redundant and numerically worse.
-
-### 15.7 Classification Experiment Table
-
-Record:
-
-```text
-model_type | routing_type | train_accuracy | test_accuracy | test_loss | router_accuracy
-```
-
-Compare:
-
-- global classifier
-- oracle-routed classifier
-- random-routed classifier
-- similarity-routed classifier
-
-Run checkpoint:
-
-Do not move to top-2 routing until the global classifier and similarity-routed classifier both run without shape errors.
-
-## 16. Phase 10: Top-2 Routing
-
-### 16.1 Intuition
-
-Top-1 routing chooses one expert.
-
-Top-2 routing lets two experts vote.
-
-This is closer to sparse MoE behavior, but still simple.
-
-### 16.2 Regression Version
-
-For each input:
-
-```text
-choose top 2 experts
-get 2 predictions
-average the predictions
-```
-
-This is not necessarily optimal. It is just the simplest ballot.
-
-### 16.3 Code Sketch In `models.py`
-
-```python
-def top2_routed_predict_regression(X, expert_W, expert_b, region_table):
-    top_ids, _, _ = route_topk(X, region_table, k=2)
-    preds = torch.zeros(X.shape[0], 2)
-
-    for j in range(2):
-        route_ids = top_ids[:, j]
-        for r in range(expert_W.shape[0]):
-            mask = route_ids == r
-            if mask.any():
-                preds[mask, j] = X[mask] @ expert_W[r] + expert_b[r]
-
-    return preds.mean(dim=1), top_ids
-```
-
-### 16.4 What To Test
-
-Compare:
-
-```text
-top-1 similarity routing
-top-2 similarity routing
-top-2 oracle plus one distractor
-top-2 random routing
-```
-
-Action:
-
-Run these as experiment variants in `experiments.ipynb` after `top2_routed_predict_regression` exists in `models.py`. This section is not one standalone cell; it tells you which variants to compare.
-
-### 16.5 What To Learn
-
-Top-2 may help when routing is uncertain.
-
-Top-2 may hurt when the second expert is wrong and its vote corrupts the result.
-
-This connects to an important systems idea:
-
-> More active compute is not automatically better. It depends on whether the extra compute is relevant.
-
-## 17. Phase 11: Local Update Gate
-
-### 17.1 Intuition
-
-This is the first tiny connection to the algorithm topology.
-
-Instead of updating every time, add a crude gate:
-
-```text
-expert participated AND loss is high enough -> update
-otherwise -> skip durable update
-```
-
-This is not real biology. It is a mechanical toy analog for:
-
-```text
-local participation x global salience
-```
-
-### 17.2 Simple Batch-Level Gate In `experiments.ipynb`
-
-Run this only after ordinary routed regression training works. This is an experiment variant, not required for the first successful baseline.
-
-Action:
-
-Do not run this as a standalone cell unless `route_ids`, `expert_W`, and `expert_b` already exist from the current experiment. Usually, insert this logic inside a modified routed training loop, replacing the ordinary `loss.backward()` and `sgd(...)` part.
-
-```python
+loss_values = [1.2, 0.7, 0.3]
 threshold = 0.5
 
-loss = routed_regression_loss(
-    X_train, y_train, expert_W, expert_b, route_ids
+for loss_value in loss_values:
+    if loss_value > threshold:
+        decision = "update"
+    else:
+        decision = "skip"
+
+    print(loss_value, decision)
+```
+
+Expected output:
+
+```text
+1.2 update
+0.7 update
+0.3 skip
+```
+
+Mechanical meaning:
+
+- The gate uses `loss.item()` during training because the decision is ordinary Python control flow.
+- If the gate skips, there is no `backward()` call and no `sgd(...)` call for that epoch.
+
+### 17.4 Full Gated-Update Experiment Cell
+
+Purpose:
+
+Compare normal routed regression against threshold-gated routed regression.
+
+Action:
+
+Run this as one cell in `experiments.ipynb`.
+
+```python
+# 17.4 Local Update Gate Experiment
+
+# Fix randomness so all threshold conditions start from reproducible data.
+torch.manual_seed(0)
+
+# Use four routed experts.
+num_regions = 4
+
+# Each input has six features.
+num_features = 6
+
+# Build the router prototype table.
+# Shape: [4, 6]
+region_table = make_region_table(num_regions, num_features)
+
+# Build the hidden regression rule for each region.
+# true_W shape: [4, 6]
+# true_b shape: [4]
+true_W, true_b = make_region_rules(num_regions, num_features)
+
+# Use a balanced region mixture for this gate experiment.
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+# Generate a standard multi-region regression dataset.
+X, y, region_ids = make_sparse_regression_data(
+    500, region_table, true_W, true_b, mixture
 )
 
-if loss.item() > threshold:
-    loss.backward()
-    sgd([expert_W, expert_b], lr=0.03)
-else:
+# Split X, y, and true region IDs together.
+(
+    X_train,
+    y_train,
+    train_region_ids,
+    X_test,
+    y_test,
+    test_region_ids,
+) = train_test_split_with_regions(X, y, region_ids)
+
+
+# Train one similarity-routed model with a specific update threshold.
+# threshold=None means ordinary training: always update.
+def run_gated_similarity_regression(threshold):
+    # Create one trainable weight vector per expert.
+    # Shape: [regions, features] = [4, 6]
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+
+    # Create one trainable bias per expert.
+    # Shape: [regions] = [4]
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    # Count how many epochs actually performed backward + SGD.
+    update_count = 0
+
+    # Run 200 possible training epochs.
+    for epoch in range(200):
+        # Route each training example by similarity.
+        # route_ids shape: [train_examples]
+        route_ids = similarity_routes(X_train, region_table)
+
+        # Compute the routed training loss for this epoch.
+        # loss is a scalar tensor.
+        loss = routed_regression_loss(
+            X_train, y_train, expert_W, expert_b, route_ids
+        )
+
+        # If threshold is None, always update.
+        # Otherwise, convert loss to a Python float and compare against threshold.
+        if threshold is None or loss.item() > threshold:
+            # Only this branch builds gradients.
+            loss.backward()
+
+            # Only this branch changes expert_W and expert_b.
+            sgd([expert_W, expert_b], lr=0.03)
+
+            # Track how many optimizer updates actually happened.
+            update_count += 1
+
+        # If the branch is skipped, no backward pass occurs and parameters stay unchanged.
+
+    # Evaluate the final model without tracking gradients.
     with torch.no_grad():
-        for p in [expert_W, expert_b]:
-            if p.grad is not None:
-                p.grad.zero_()
+        # routed_predict_regression computes similarity routes internally.
+        train_pred, train_routes = routed_predict_regression(
+            X_train, expert_W, expert_b, region_table
+        )
+
+        # Same prediction path on the test set.
+        test_pred, test_routes = routed_predict_regression(
+            X_test, expert_W, expert_b, region_table
+        )
+
+        # Plain train/test MSE, not including any threshold logic.
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+
+        # Measure whether the similarity router is still assigning correct regions.
+        router_acc = (test_routes == test_region_ids).float().mean().item()
+
+        # Break test MSE down by true region to see uneven failures.
+        per_region_loss = per_region_mse(
+            test_pred, y_test, test_region_ids, num_regions
+        )
+
+    # Return one result row worth of values.
+    return (
+        update_count,
+        train_loss.item(),
+        test_loss.item(),
+        router_acc,
+        per_region_loss,
+    )
+
+
+# Compare ordinary training against increasingly strict update thresholds.
+thresholds = [None, 0.2, 0.5, 1.0]
+
+# Collect one row per threshold.
+results = []
+
+# Run a fresh model for each threshold condition.
+for threshold in thresholds:
+    # Train/evaluate one condition.
+    update_count, train_loss, test_loss, router_acc, per_region_loss = run_gated_similarity_regression(
+        threshold
+    )
+
+    # Store threshold, number of actual updates, and final metrics.
+    results.append([
+        threshold,
+        update_count,
+        train_loss,
+        test_loss,
+        router_acc,
+        per_region_loss,
+    ])
+
+# Print comparison rows.
+for row in results:
+    print(row)
 ```
 
-### 17.3 Why This Is Crude
-
-This gate uses one scalar loss for the whole batch.
-
-The biological story is more local and asynchronous:
-
-- some synapses participate
-- some local traces decay
-- broad signals arrive independently
-- durable changes happen only where signals coincide
-- homeostatic scaling can run separately
-- replay can run separately
-- retrieval-triggered updates are not necessarily in the same timeline
-
-So this phase is only a mechanical sketch.
-
-### 17.4 What To Test
-
-Run:
+Output columns:
 
 ```text
-no gate
-threshold = low
-threshold = medium
-threshold = high
+threshold | number_of_updates | train_loss | test_loss | router_accuracy | per_region_test_loss
 ```
 
-Record:
+Expected rough pattern:
 
-```text
-threshold | number_of_updates | train_loss | test_loss | per_region_loss
-```
+- `threshold = None` should update 200 times.
+- Very low thresholds should behave close to normal training.
+- Very high thresholds may skip too many updates and hurt learning.
+- A useful threshold would reduce updates without badly hurting test loss.
 
-### 17.5 What To Learn
+Failure checks:
 
-If the threshold is too low:
+- `NameError: per_region_mse`: add it to `metrics.py` from Phase 14 and rerun the import cell.
+- `number_of_updates = 0` for every threshold: thresholds are too high or loss is already below threshold.
+- Loss does not change at all: check that `loss.backward()` and `sgd(...)` are inside the update branch.
 
-The gate behaves almost like ordinary training.
+### 17.5 Checkpoint
 
-If the threshold is too high:
+You are ready to move on when you can explain:
 
-The model may barely learn.
-
-If the threshold is useful:
-
-It may reduce unnecessary updates while preserving performance.
-
-This is where the research instinct starts:
-
-> When should a system be allowed to write?
+- why this gate is batch-level rather than per-example
+- why skipped epochs do not update parameters
+- why a low threshold behaves like ordinary training
+- why a high threshold can cause underfitting
+- why this is only a toy analog of local gated learning
 
 ## 18. Phase 12: Optional Homeostatic Scaling
 
-### 18.1 Intuition
+### 18.1 Goal
 
-Homeostatic scaling is a local stabilizer idea.
+Homeostatic scaling is a stabilizer.
 
-In this toy project, make it very simple:
+In this project, use the simplest version:
 
 ```text
-periodically rescale each expert's weight vector toward a target norm
+periodically rescale each expert weight vector toward a target norm
 ```
 
-This is not content-aware. It does not know whether predictions are correct.
+This is different from weight decay:
 
-### 18.2 Code Sketch
+```text
+weight decay: changes the loss objective
+homeostatic scaling: changes weights outside the loss objective
+```
 
-Type `rescale_expert_weights` into `train.py`.
+### 18.2 Exact Run Order
+
+Use this order:
+
+```text
+1. Run the norm/rescale drill.
+2. Add rescale_expert_weights to train.py.
+3. Rerun the notebook import/reload cell.
+4. Run the full scaling experiment cell.
+5. Write the checkpoint answers in notes.md.
+```
+
+### 18.3 Syntax Preflight: Norms And Rescaling
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+W_small = torch.tensor([
+    [3.0, 4.0],
+    [6.0, 8.0],
+])
+
+norms = W_small.norm(dim=1, keepdim=True)
+target_norm = 1.0
+scale = target_norm / (norms + 1e-8)
+W_scaled = W_small * scale
+
+print("norms before:", W_small.norm(dim=1))
+print("scale:", scale)
+print("norms after:", W_scaled.norm(dim=1))
+```
+
+Expected output pattern:
+
+```text
+norms before: tensor([ 5., 10.])
+norms after: tensor([1., 1.])
+```
+
+Mechanical meaning:
+
+- `dim=1` computes one norm per expert row.
+- `keepdim=True` keeps shape `[regions, 1]`, so scaling broadcasts across features.
+
+### 18.4 File Edit: `rescale_expert_weights` In `train.py`
+
+Action:
+
+Add this function to `train.py`.
 
 ```python
 def rescale_expert_weights(expert_W, target_norm=1.0):
+    # This function directly changes expert_W values, so do it outside autograd.
     with torch.no_grad():
+        # Compute one L2 norm per expert row.
+        # If expert_W shape is [regions, features], norms shape is [regions, 1].
         norms = expert_W.norm(dim=1, keepdim=True)
+
+        # Compute one multiplier per expert row.
+        # The small 1e-8 prevents division by zero.
         scale = target_norm / (norms + 1e-8)
+
+        # Multiply each expert row by its own scale.
+        # Broadcasting works because scale shape is [regions, 1].
         expert_W *= scale
 ```
 
-Use every 20 epochs:
+Then rerun the notebook import/reload cell.
 
-Type this call into the relevant training loop in `experiments.ipynb`.
+Expected import output:
+
+```text
+No SKIP line for train.rescale_expert_weights
+```
+
+### 18.5 Full Scaling Experiment Cell
+
+Purpose:
+
+Compare ordinary routed regression, weight decay, homeostatic scaling, and both together.
 
 Action:
 
-Do not run this snippet by itself. Insert it inside the training loop variant where you are testing homeostatic scaling, then run that whole training loop.
+Run this as one cell in `experiments.ipynb`.
 
 ```python
-if epoch % 20 == 0:
-    rescale_expert_weights(expert_W, target_norm=1.0)
+# 18.5 Weight Decay vs Homeostatic Scaling
+
+# Fix randomness so each condition is easier to compare.
+torch.manual_seed(0)
+
+# Use four routed experts.
+num_regions = 4
+
+# Each example has six features.
+num_features = 6
+
+# Create the router prototype table.
+# Shape: [4, 6]
+region_table = make_region_table(num_regions, num_features)
+
+# Create hidden region-specific regression rules.
+true_W, true_b = make_region_rules(num_regions, num_features)
+
+# Use a balanced dataset for this comparison.
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+# Generate one synthetic regression dataset.
+X, y, region_ids = make_sparse_regression_data(
+    500, region_table, true_W, true_b, mixture
+)
+
+# Split examples, labels, and true region IDs together.
+(
+    X_train,
+    y_train,
+    train_region_ids,
+    X_test,
+    y_test,
+    test_region_ids,
+) = train_test_split_with_regions(X, y, region_ids)
+
+
+# Train one routed model under one regularization/scaling condition.
+# wd controls the weight-decay penalty.
+# use_scaling controls direct periodic norm rescaling.
+def run_scaling_experiment(wd, use_scaling):
+    # expert_W has one six-feature weight vector per expert.
+    # Shape: [4, 6]
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+
+    # expert_b has one scalar bias per expert.
+    # Shape: [4]
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    # Run 200 full-batch training epochs.
+    for epoch in range(200):
+        # Route each training example to the nearest expert.
+        route_ids = similarity_routes(X_train, region_table)
+
+        # Compute routed prediction MSE.
+        loss = routed_regression_loss(
+            X_train, y_train, expert_W, expert_b, route_ids
+        )
+
+        # Add weight decay to the training objective.
+        # If wd is 0.0, this adds nothing.
+        # This penalty contributes gradients during loss.backward().
+        loss = loss + wd * l2_penalty(expert_W)
+
+        # Backpropagate through prediction loss plus optional weight penalty.
+        loss.backward()
+
+        # Apply the gradient update and clear gradients.
+        sgd([expert_W, expert_b], lr=0.03)
+
+        # Homeostatic scaling is not part of the loss.
+        # It directly modifies expert_W after the optimizer step.
+        # epoch % 20 == 0 means epochs 0, 20, 40, ... trigger rescaling.
+        if use_scaling and epoch % 20 == 0:
+            rescale_expert_weights(expert_W, target_norm=1.0)
+
+    # Evaluate final model without building gradient history.
+    with torch.no_grad():
+        # Predict train outputs using similarity routing.
+        train_pred, train_routes = routed_predict_regression(
+            X_train, expert_W, expert_b, region_table
+        )
+
+        # Predict test outputs using similarity routing.
+        test_pred, test_routes = routed_predict_regression(
+            X_test, expert_W, expert_b, region_table
+        )
+
+        # Report plain MSE only.
+        # Do not include the weight-decay penalty in evaluation loss.
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+
+        # Overall norm of the whole expert_W tensor.
+        weight_norm = expert_W.norm().item()
+
+        # One norm per expert row.
+        # Shape before .tolist(): [4]
+        per_expert_norms = expert_W.norm(dim=1).tolist()
+
+    # Return metrics for this condition.
+    return train_loss.item(), test_loss.item(), weight_norm, per_expert_norms
+
+
+# Each row defines one experimental condition:
+# [condition name, weight decay coefficient, whether to apply scaling]
+configs = [
+    ["none", 0.0, False],
+    ["weight decay", 0.1, False],
+    ["homeostatic scaling", 0.0, True],
+    ["weight decay + scaling", 0.1, True],
+]
+
+# Collect one output row per condition.
+results = []
+
+# Train and evaluate a fresh model for each condition.
+for name, wd, use_scaling in configs:
+    # Run one condition.
+    train_loss, test_loss, weight_norm, per_expert_norms = run_scaling_experiment(
+        wd, use_scaling
+    )
+
+    # Store condition metadata plus final metrics.
+    results.append([
+        name,
+        wd,
+        use_scaling,
+        train_loss,
+        test_loss,
+        weight_norm,
+        per_expert_norms,
+    ])
+
+# Print the comparison table.
+for row in results:
+    print(row)
 ```
 
-### 18.3 What To Test
-
-Compare:
+Output columns:
 
 ```text
-no weight decay
-weight decay
-homeostatic scaling
-weight decay + homeostatic scaling
+condition | wd | use_scaling | train_loss | test_loss | weight_norm | per_expert_norms
 ```
 
-### 18.4 What To Learn
+Expected rough pattern:
 
-Weight decay changes the loss objective.
+- Scaling should push per-expert norms closer to the target.
+- Weight decay should usually reduce norms through the training objective.
+- Scaling and weight decay can affect loss differently because they act through different mechanisms.
 
-Homeostatic scaling changes weights outside the loss objective.
+Failure checks:
 
-They are not the same operation.
+- `NameError: rescale_expert_weights`: rerun import cell after editing `train.py`.
+- Per-expert norms do not change under scaling: check `epoch % 20 == 0` block is inside the training loop.
+- All norms become zero or explode: check `target_norm` and learning rate.
 
-This distinction matters for your algorithm topology because Stage 4 is not the same as Stage 3.
+### 18.6 Checkpoint
+
+You are ready to move on when you can explain:
+
+- why `expert_W.norm(dim=1)` gives one norm per expert
+- why `keepdim=True` matters for broadcasting
+- why homeostatic scaling is not the same as weight decay
+- why smaller weight norm is not automatically better
 
 ## 19. Phase 13: Optional Replay Buffer
 
-### 19.1 Intuition
+### 19.1 Goal
 
-A replay buffer stores some old examples.
+Replay stores old examples and mixes them into later training.
 
-During later training, you mix old examples with current examples so the model does not only train on the newest distribution.
+The question:
 
-### 19.2 Simple Replay Buffer In `train.py`
+```text
+When the training distribution moves from old regions to new regions,
+does replay help preserve old-region performance?
+```
+
+Replay is different from sparse routing:
+
+```text
+sparse routing: avoid touching unrelated experts
+replay: keep old examples in the training stream
+```
+
+### 19.2 Exact Run Order
+
+Use this order:
+
+```text
+1. Run the torch.cat drill.
+2. Add ReplayBuffer to train.py.
+3. Rerun the notebook import/reload cell.
+4. Run the replay buffer drill.
+5. Run the full curriculum experiment cell.
+6. Write the checkpoint answers in notes.md.
+```
+
+### 19.3 Syntax Preflight: `torch.cat`
 
 Action:
 
-Type and save this in `train.py`. Do not run `train.py`. Keep both code blocks inside the same `ReplayBuffer` class indentation.
+Run this in `experiments.ipynb`.
+
+```python
+current_X = torch.randn(3, 6)
+replay_X = torch.randn(2, 6)
+
+mixed_X = torch.cat([current_X, replay_X], dim=0)
+
+print("current_X:", current_X.shape)
+print("replay_X:", replay_X.shape)
+print("mixed_X:", mixed_X.shape)
+```
+
+Expected output:
+
+```text
+current_X: torch.Size([3, 6])
+replay_X: torch.Size([2, 6])
+mixed_X: torch.Size([5, 6])
+```
+
+Mechanical meaning:
+
+- `dim=0` stacks more examples into the batch.
+- Feature count must match.
+
+### 19.4 File Edit: `ReplayBuffer` In `train.py`
+
+Action:
+
+Add this class to `train.py`.
 
 ```python
 class ReplayBuffer:
     def __init__(self, max_size):
+        # Store at most this many examples.
         self.max_size = max_size
+
+        # Python list of individual X rows.
+        # Each stored item has shape [features].
         self.X = []
+
+        # Python list of individual labels.
+        # For regression, each stored item is a scalar tensor.
         self.y = []
 
     def add(self, X, y):
+        # Add examples one row at a time so the buffer can keep/replay individual examples.
         for i in range(X.shape[0]):
+            # detach() removes old computation graph history.
+            # clone() gives the buffer its own copy of the tensor values.
             self.X.append(X[i].detach().clone())
             self.y.append(y[i].detach().clone())
+
+        # Keep only the most recent max_size examples.
+        # If max_size is 300 and 500 examples were added, the oldest 200 are dropped.
         self.X = self.X[-self.max_size:]
         self.y = self.y[-self.max_size:]
-```
 
-```python
     def sample(self, batch_size):
+        # n is the number of examples currently stored.
         n = len(self.X)
+
+        # Randomly choose batch_size integer positions from 0 to n - 1.
+        # idx shape: [batch_size]
         idx = torch.randint(0, n, (batch_size,))
-        X = torch.stack([self.X[i] for i in idx])
-        y = torch.stack([self.y[i] for i in idx])
+
+        # Rebuild a batch tensor from the sampled stored rows.
+        # X shape: [batch_size, features]
+        X = torch.stack([self.X[int(i)] for i in idx])
+
+        # Rebuild the matching label tensor.
+        # y shape: [batch_size]
+        y = torch.stack([self.y[int(i)] for i in idx])
+
+        # Return replay examples and labels in matching order.
         return X, y
 ```
 
-If you type this into a real file, keep both methods inside the same class indentation.
+Then rerun the notebook import/reload cell.
 
-### 19.3 What To Test
-
-Create a curriculum:
+Expected import output:
 
 ```text
-first train mostly on region 0 and 1
-then train mostly on region 2 and 3
+No SKIP line for train.ReplayBuffer
 ```
 
-Compare:
-
-```text
-without replay: old-region performance after new-region training
-with replay: old-region performance after new-region training
-```
+### 19.5 Syntax Preflight: Replay Add And Sample
 
 Action:
 
-Run this later as an experiment variant in `experiments.ipynb` after the ordinary shifted-distribution experiment works. This section is not one standalone cell yet.
+Run this in `experiments.ipynb`.
 
-### 19.4 What To Learn
+```python
+buffer = ReplayBuffer(max_size=5)
 
-Replay is a different anti-forgetting mechanism from sparsity.
+X_demo = torch.randn(8, 6)
+y_demo = torch.randn(8)
 
-Sparsity says:
+buffer.add(X_demo, y_demo)
+sample_X, sample_y = buffer.sample(3)
 
-```text
-do not touch unrelated parameters
+print("stored examples:", len(buffer.X))
+print("sample_X:", sample_X.shape)
+print("sample_y:", sample_y.shape)
 ```
 
-Replay says:
+Expected output:
 
 ```text
-keep old examples in the training mixture
+stored examples: 5
+sample_X: torch.Size([3, 6])
+sample_y: torch.Size([3])
 ```
 
-These can complement each other.
+Failure check:
+
+- If `sample()` fails with `n = 0`, the buffer was sampled before anything was added.
+
+### 19.6 Full Curriculum Replay Experiment Cell
+
+Purpose:
+
+Train first on old regions, then train on new regions. Compare later old-region performance with and without replay.
+
+Action:
+
+Run this as one cell in `experiments.ipynb`.
+
+```python
+# 19.6 Curriculum Replay Experiment
+
+# Set PyTorch's random generator so random tensors, routes, and replay samples are repeatable.
+torch.manual_seed(0)
+
+# We will create four regions, so valid expert/region IDs are 0, 1, 2, and 3.
+num_regions = 4
+
+# Every input row x will have six numeric features, so X has shape [examples, 6].
+num_features = 6
+
+# Create one prototype vector per region; shape is [4, 6].
+# similarity_routes later compares each input row against these four rows.
+region_table = make_region_table(num_regions, num_features)
+
+# Create the hidden answer-key regression weights and biases.
+# true_W shape is [4, 6], so true_W[r] is the hidden rule for region r.
+# true_b shape is [4], so true_b[r] is the hidden bias for region r.
+true_W, true_b = make_region_rules(num_regions, num_features)
+
+# This probability vector controls how often each region appears in old data.
+# Regions 0 and 1 are common; regions 2 and 3 are rare.
+old_mixture = torch.tensor([0.45, 0.45, 0.05, 0.05])
+
+# This probability vector controls how often each region appears in new data.
+# Now regions 2 and 3 are common; this intentionally changes the training distribution.
+new_mixture = torch.tensor([0.05, 0.05, 0.45, 0.45])
+
+# Generate old training examples.
+# old_X_train shape: [500, 6]
+# old_y_train shape: [500]
+# old_region_ids_train shape: [500], with mostly 0s and 1s.
+old_X_train, old_y_train, old_region_ids_train = make_sparse_regression_data(
+    500, region_table, true_W, true_b, old_mixture
+)
+
+# Generate new training examples.
+# Same shapes as old training data, but region IDs are mostly 2s and 3s.
+new_X_train, new_y_train, new_region_ids_train = make_sparse_regression_data(
+    500, region_table, true_W, true_b, new_mixture
+)
+
+# Generate old-distribution test data.
+# This lets us ask: after learning new data, did the model forget old regions?
+old_X_test, old_y_test, old_region_ids_test = make_sparse_regression_data(
+    200, region_table, true_W, true_b, old_mixture
+)
+
+# Generate new-distribution test data.
+# This lets us ask: did the model learn the later/new distribution?
+new_X_test, new_y_test, new_region_ids_test = make_sparse_regression_data(
+    200, region_table, true_W, true_b, new_mixture
+)
+
+
+# This helper performs exactly one full-batch optimization step.
+def train_one_routed_epoch(expert_W, expert_b, batch_X, batch_y):
+    # Compute route_ids from the batch itself.
+    # batch_X shape is [batch_size, 6].
+    # route_ids shape is [batch_size], where each value is an expert ID 0..3.
+    route_ids = similarity_routes(batch_X, region_table)
+
+    # Compute prediction MSE using only the expert assigned to each example.
+    # Inside routed_regression_loss, masks select rows for each expert.
+    loss = routed_regression_loss(
+        batch_X, batch_y, expert_W, expert_b, route_ids
+    )
+
+    # Build gradients for expert_W/expert_b from this loss.
+    # Only experts used by route_ids receive meaningful gradients.
+    loss.backward()
+
+    # Apply manual SGD to expert_W and expert_b, then zero their gradients.
+    # The next epoch starts with updated parameters and clean grad buffers.
+    sgd([expert_W, expert_b], lr=0.03)
+
+
+# This helper measures prediction error without training.
+def evaluate_routed_loss(expert_W, expert_b, eval_X, eval_y):
+    # routed_predict_regression computes similarity routes internally.
+    # pred shape is [eval_examples]; routes shape is [eval_examples].
+    pred, routes = routed_predict_regression(
+        eval_X, expert_W, expert_b, region_table
+    )
+
+    # squared_loss returns average prediction error across this eval set.
+    # .item() converts the scalar tensor into a plain Python float for printing.
+    return squared_loss(pred, eval_y).item()
+
+
+# This helper runs the full two-stage training process once.
+# use_replay=False means stage 2 trains only on new data.
+# use_replay=True means stage 2 trains on new data plus sampled old examples.
+def run_curriculum(use_replay):
+    # Create trainable expert weights.
+    # Shape [4, 6] means four experts, each with one six-feature linear rule.
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+
+    # Create trainable expert biases.
+    # Shape [4] means one scalar bias per expert.
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    # Construct an empty ReplayBuffer object.
+    # Mechanically, ReplayBuffer owns two Python lists: buffer.X and buffer.y.
+    # max_size=300 means after adding examples, it keeps only the most recent 300.
+    # At this line, nothing is stored yet; len(buffer.X) is 0.
+    buffer = ReplayBuffer(max_size=300)
+
+    # Stage 1 trains on old_X_train only.
+    # This should make experts good at the old distribution, especially regions 0 and 1.
+    for epoch in range(100):
+        train_one_routed_epoch(expert_W, expert_b, old_X_train, old_y_train)
+
+    # If replay is enabled, copy old examples into the buffer after stage 1.
+    # buffer.add loops through old_X_train row-by-row and stores detached clones.
+    # Because max_size is 300 and old_X_train has 500 rows, only 300 examples remain stored.
+    # Detaching matters because replay examples should be data, not old computation graphs.
+    if use_replay:
+        buffer.add(old_X_train, old_y_train)
+
+    # Stage 2 trains on the new distribution.
+    # This is where forgetting can happen: updates now mostly come from regions 2 and 3.
+    for epoch in range(100):
+        # Replay branch: mix old examples back into the stage-2 training batch.
+        if use_replay:
+            # Randomly choose 128 stored old examples from buffer.X and buffer.y.
+            # replay_X shape: [128, 6]
+            # replay_y shape: [128]
+            replay_X, replay_y = buffer.sample(128)
+
+            # Concatenate current new examples and replayed old examples along rows.
+            # new_X_train shape: [500, 6]
+            # replay_X shape: [128, 6]
+            # batch_X shape: [628, 6]
+            batch_X = torch.cat([new_X_train, replay_X], dim=0)
+
+            # Concatenate matching labels in the same row order.
+            # new_y_train shape: [500]
+            # replay_y shape: [128]
+            # batch_y shape: [628]
+            batch_y = torch.cat([new_y_train, replay_y], dim=0)
+
+        # No-replay branch: stage 2 ignores old data completely.
+        else:
+            # batch_X is just the new distribution examples, shape [500, 6].
+            batch_X = new_X_train
+
+            # batch_y is just the new distribution labels, shape [500].
+            batch_y = new_y_train
+
+        # Train one epoch on whichever batch the branch produced.
+        # With replay, gradients reflect both new and sampled old examples.
+        # Without replay, gradients reflect only new examples.
+        train_one_routed_epoch(expert_W, expert_b, batch_X, batch_y)
+
+    # Evaluate final model on old test data.
+    # High loss here means the model forgot or never learned the old distribution well.
+    old_test_loss = evaluate_routed_loss(expert_W, expert_b, old_X_test, old_y_test)
+
+    # Evaluate final model on new test data.
+    # This checks whether adding replay prevented learning the new distribution.
+    new_test_loss = evaluate_routed_loss(expert_W, expert_b, new_X_test, new_y_test)
+
+    # Return both losses so the outer loop can compare replay vs no replay.
+    return old_test_loss, new_test_loss
+
+
+# Create a Python list that will hold two rows: one no-replay row and one replay row.
+results = []
+
+# Run the same curriculum twice.
+# First with use_replay=False, then with use_replay=True.
+for use_replay in [False, True]:
+    # Train a fresh model under this replay condition and get final test losses.
+    old_test_loss, new_test_loss = run_curriculum(use_replay)
+
+    # Store the result as a table row.
+    # Column 1: whether replay was used.
+    # Column 2: final loss on old-distribution test data.
+    # Column 3: final loss on new-distribution test data.
+    results.append([
+        use_replay,
+        old_test_loss,
+        new_test_loss,
+    ])
+
+# Print the two result rows.
+# Lower old_test_loss with replay means replay helped preserve old-distribution performance.
+for row in results:
+    print(row)
+```
+
+Output columns:
+
+```text
+use_replay | old_distribution_test_loss | new_distribution_test_loss
+```
+
+Expected rough pattern:
+
+- Without replay, old-distribution test loss may worsen after training on the new distribution.
+- With replay, old-distribution test loss may improve or degrade less.
+- New-distribution performance can sometimes be worse with replay because training time is shared with old examples.
+
+Failure checks:
+
+- `NameError: ReplayBuffer`: rerun import cell after editing `train.py`.
+- `RuntimeError` from `torch.cat`: check both tensors have the same number of features.
+- Replay has no effect at all: check `use_replay` branch actually builds `batch_X` with `torch.cat`.
+
+### 19.7 Checkpoint
+
+You are ready to move on when you can explain:
+
+- why replay uses `torch.cat(..., dim=0)`
+- why replay can help old-region performance
+- why replay can sometimes hurt new-region performance
+- why replay and sparse routing solve different problems
 
 ## 20. Required Experiment Matrix
 
-At minimum, run these experiments.
+This matrix lists the minimum experiments for Project 0. Earlier phases already covered most regression rows.
 
 Regression:
 
@@ -2780,10 +4103,9 @@ Classification:
 
 ```text
 1. global softmax classifier, stable distribution
-2. global softmax classifier, shifted distribution
-3. routed softmax experts, oracle routing
-4. routed softmax experts, random routing
-5. routed softmax experts, similarity routing
+2. routed softmax experts, oracle routing
+3. routed softmax experts, random routing
+4. routed softmax experts, similarity routing
 ```
 
 Optional:
@@ -2796,9 +4118,17 @@ Optional:
 5. deliberate router corruption
 ```
 
+Do not skip the global baseline.
+
+Do not skip random routing.
+
+Those weak baselines make the routed result interpretable.
+
 ## 21. Metrics
 
-Regression metrics:
+### 21.1 Regression Metrics
+
+Use these for regression:
 
 - train MSE
 - test MSE
@@ -2808,7 +4138,9 @@ Regression metrics:
 - region usage count
 - number of parameter updates
 
-Classification metrics:
+### 21.2 Classification Metrics
+
+Use these for classification:
 
 - train accuracy
 - test accuracy
@@ -2819,15 +4151,25 @@ Classification metrics:
 - router accuracy
 - region usage count
 
-Simple confusion matrix:
+### 21.3 File Edit: Confusion Matrix In `metrics.py`
 
-Type `confusion_matrix` into `metrics.py`.
+Action:
+
+Add this function to `metrics.py`.
 
 ```python
 def confusion_matrix(pred, y, num_classes):
+    # Create a square count table.
+    # Rows are true classes; columns are predicted classes.
+    # Shape: [num_classes, num_classes]
     matrix = torch.zeros(num_classes, num_classes, dtype=torch.int64)
+
+    # Walk through true/predicted class IDs one example at a time.
     for true, guessed in zip(y, pred):
+        # Add one count to the cell for this true/predicted pair.
         matrix[true, guessed] += 1
+
+    # Return the full count table.
     return matrix
 ```
 
@@ -2835,9 +4177,33 @@ Rows are true labels.
 
 Columns are predicted labels.
 
+Then rerun the notebook import/reload cell.
+
+### 21.4 Syntax Preflight: Confusion Matrix
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+y_demo = torch.tensor([0, 1, 2, 1, 0])
+pred_demo = torch.tensor([0, 2, 2, 1, 1])
+
+matrix = confusion_matrix(pred_demo, y_demo, num_classes=3)
+print(matrix)
+```
+
+Expected interpretation:
+
+```text
+matrix[true_class, predicted_class]
+```
+
+For example, `matrix[1, 2]` counts examples whose true class was `1` and predicted class was `2`.
+
 ## 22. Notes Template
 
-Use this in `notes.md`:
+Use this in `notes.md` for every remaining experiment:
 
 ```text
 # Project 0 Notes
@@ -2873,64 +4239,115 @@ What I think is happening mechanically:
 Next experiment:
 ```
 
+Minimum note quality:
+
+- Include exact numbers.
+- Include tensor shapes when a new tensor appears.
+- Write at least one mechanical explanation, not only a conclusion.
+
 ## 23. Debugging Checklist
 
-Before asking for help, print:
+Run only the relevant debugging cell. Do not run all of these after every experiment.
+
+### 23.1 Shape Debug Cell
 
 Action:
 
-Run these snippets in `experiments.ipynb` only when debugging.
+Run this when a shape error appears.
 
 ```python
-print("X", X.shape)
-print("y", y.shape)
-print("region_ids", region_ids.shape)
-print("expert_W", expert_W.shape)
-print("expert_b", expert_b.shape)
-print("route_ids", route_ids.shape)
+print("X_train", X_train.shape)
+print("y_train", y_train.shape)
+print("X_test", X_test.shape)
+print("y_test", y_test.shape)
+
+if "train_region_ids" in globals():
+    print("train_region_ids", train_region_ids.shape)
+
+if "test_region_ids" in globals():
+    print("test_region_ids", test_region_ids.shape)
+
+if "route_ids" in globals():
+    print("route_ids", route_ids.shape)
+
+if "expert_W" in globals():
+    print("expert_W", expert_W.shape)
+
+if "expert_b" in globals():
+    print("expert_b", expert_b.shape)
 ```
 
-For regression:
+### 23.2 Regression Debug Cell
+
+Action:
+
+Run this when regression predictions or loss look wrong.
 
 ```python
+with torch.no_grad():
+    y_hat, route_ids = routed_predict_regression(
+        X_train, expert_W, expert_b, region_table
+    )
+    loss = squared_loss(y_hat, y_train)
+
 print("y_hat", y_hat.shape)
 print("loss", loss.item())
+print("route usage", torch.bincount(route_ids, minlength=num_regions))
 ```
 
-For classification:
-
-```python
-print("logits", logits.shape)
-print("y min/max", y.min().item(), y.max().item())
-print("loss", loss.item())
-```
-
-Check gradients:
+### 23.3 Classification Debug Cell
 
 Action:
 
-Run this only when debugging gradients. Run it before `sgd(...)`; otherwise the gradient may already have been cleared. Avoid running it repeatedly on the same loss unless you know you want gradient accumulation.
+Run this when classification loss or accuracy looks wrong.
 
 ```python
-loss.backward()
-print(expert_W.grad)
+with torch.no_grad():
+    route_ids = similarity_routes(X_train, region_table)
+    logits = routed_classification_logits(
+        X_train, expert_W, expert_b, route_ids
+    )
+    loss = F.cross_entropy(logits, y_train)
+    pred = logits.argmax(dim=1)
+
+print("logits", logits.shape)
+print("y_train", y_train.shape)
+print("y min/max", y_train.min().item(), y_train.max().item())
+print("loss", loss.item())
+print("accuracy", (pred == y_train).float().mean().item())
+print("route usage", torch.bincount(route_ids, minlength=num_regions))
 ```
 
-Check route usage:
+### 23.4 Gradient Debug Cell
+
+Action:
+
+Run this only immediately after `loss.backward()` and before `sgd(...)`.
 
 ```python
-print(torch.bincount(route_ids, minlength=num_regions))
+print("expert_W.grad is None:", expert_W.grad is None)
+
+if expert_W.grad is not None:
+    print(expert_W.grad)
 ```
+
+Important:
+
+After `sgd(...)`, the manual optimizer clears gradients. If you inspect gradients after `sgd(...)`, you will usually see zeros.
 
 ## 24. Common Failure Modes
 
 Shape mismatch:
 
-Usually caused by mixing `[batch, features]`, `[features]`, `[features, classes]`, and `[regions, features]`.
+- Check whether the tensor is `[batch, features]`, `[features]`, `[features, classes]`, `[regions, features]`, or `[regions, features, classes]`.
+- For matrix multiplication, the right-hand tensor must start with the left-hand tensor's last dimension.
 
-Loss does not decrease:
+Stale imports:
 
-Possible causes:
+- If a function was just added to `data.py`, `models.py`, `train.py`, or `metrics.py`, rerun the import/reload cell.
+- Old notebook output saying `SKIP ... not typed yet` may be stale. Rerun the cell before trusting it.
+
+Regression loss does not decrease:
 
 - learning rate too high
 - learning rate too low
@@ -2942,16 +4359,12 @@ Possible causes:
 
 Test loss much worse than train loss:
 
-Possible causes:
-
 - overfitting
 - distribution shift
 - train/test split bug
 - test regions underrepresented during training
 
 Router accuracy bad:
-
-Possible causes:
 
 - feature noise too high
 - region prototypes too similar
@@ -2960,8 +4373,6 @@ Possible causes:
 
 Classification loss weird:
 
-Possible causes:
-
 - applying softmax before `F.cross_entropy`
 - labels are not integer class IDs
 - labels contain values outside `[0, num_classes - 1]`
@@ -2969,31 +4380,36 @@ Possible causes:
 
 Inactive experts changing:
 
-Possible causes:
-
 - weight decay applied globally
-- optimizer updating all parameters with nonzero stale gradients
+- optimizer updating all parameters with stale gradients
 - gradients not cleared
-- your loss accidentally used all experts
+- loss accidentally used all experts
+
+Replay errors:
+
+- sampled before adding examples
+- `torch.cat` used along the wrong dimension
+- replay examples and current examples have different feature counts
 
 ## 25. Final Writeup Prompts
 
 At the end, write a short technical note answering:
 
-1. What did the global model learn?
-2. When did routed experts outperform the global model?
-3. When did routed experts fail?
-4. How much did router quality matter?
-5. What did distribution shift do?
-6. Which parameters received gradients during sparse training?
-7. What did weight decay change?
-8. What did per-region metrics reveal that average metrics hid?
-9. Which part connects most clearly to D2L Chapters 2-4?
-10. Which part feels like a real research question rather than a solved exercise?
+1. What did the global regression model learn?
+2. What did the global classification model learn?
+3. When did routed experts outperform the global model?
+4. When did routed experts fail?
+5. How much did router quality matter?
+6. What did distribution shift do?
+7. Which parameters received gradients during sparse training?
+8. What did weight decay change?
+9. What did per-region metrics reveal that average metrics hid?
+10. Which part connects most clearly to D2L Chapters 2-4?
+11. Which part feels like a real research question rather than a solved exercise?
 
 ## 26. Suggested Build Order
 
-Use this exact order when typing:
+Use this exact order when typing Project 0 from scratch:
 
 ```text
 1. one global regression model on one linear dataset
@@ -3006,20 +4422,18 @@ Use this exact order when typing:
 8. oracle/random/similarity routing comparison
 9. weight decay
 10. distribution shift
-11. global softmax classifier
-12. routed softmax experts
-13. top-2 routing
-14. local update gate
-15. optional homeostatic scaling
-16. optional replay buffer
-17. final writeup
+11. classification syntax preflight
+12. classification data helpers
+13. global softmax classifier
+14. routed softmax experts
+15. top-2 routing
+16. local update gate
+17. optional homeostatic scaling
+18. optional replay buffer
+19. final writeup
 ```
 
-Do not skip the global baseline.
-
-Do not skip random routing.
-
-Those weak baselines are what make the routed result interpretable.
+If a future phase requires a new syntax feature, add a drill before the full experiment cell.
 
 ## 27. Final Done Criteria
 
@@ -3036,6 +4450,13 @@ You are done with Project 0 when:
 - weight decay is tested
 - one local-update-gate experiment is attempted
 - `notes.md` contains experiment logs and final explanations
+
+Optional completion:
+
+- top-2 routing is compared against top-1 routing
+- homeostatic scaling is tested
+- replay buffer is tested
+- confusion matrix is computed for classification
 
 The point is not that sparse experts must win.
 
