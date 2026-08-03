@@ -1891,6 +1891,73 @@ Run this after each weight-decay experiment.
 with torch.no_grad():
     norm = expert_W.norm().item()
 ```
+Type this into `experiments.ipynb`.
+
+```python
+wd_values = [0.0, 0.001, 0.01, 0.1]
+
+def run_global_weight_decay(wd):
+    w = torch.randn(num_features, requires_grad=True)
+    b = torch.zeros((), requires_grad=True)
+
+    for epoch in range(200):
+        y_hat = predict_regression(X_train, w, b)
+        loss = squared_loss(y_hat, y_train) + wd * l2_penalty(w)
+        loss.backward()
+        sgd([w, b], lr=0.01)
+
+    with torch.no_grad():
+        train_loss = squared_loss(predict_regression(X_train, w, b), y_train)
+        test_loss = squared_loss(predict_regression(X_test, w, b), y_test)
+        weight_norm = w.norm().item()
+
+    return train_loss.item(), test_loss.item(), weight_norm
+
+def run_similarity_routed_weight_decay(wd):
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    for epoch in range(200):
+        route_ids = similarity_routes(X_train, region_table)
+
+        loss = routed_regression_loss(
+            X_train, y_train, expert_W, expert_b, route_ids
+        )
+        loss = loss + wd * l2_penalty(expert_W)
+
+        loss.backward()
+        sgd([expert_W, expert_b], lr=0.03)
+
+    with torch.no_grad():
+        train_routes = similarity_routes(X_train, region_table)
+        test_routes = similarity_routes(X_test, region_table)
+
+        train_pred = routed_predict_with_routes(
+            X_train, expert_W, expert_b, train_routes
+        )
+        test_pred = routed_predict_with_routes(
+            X_test, expert_W, expert_b, test_routes
+        )
+
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+        weight_norm = expert_W.norm().item()
+
+    return train_loss.item(), test_loss.item(), weight_norm
+
+results = []
+
+for wd in wd_values:
+    train_loss, test_loss, weight_norm = run_global_weight_decay(wd)
+    results.append(["global", wd, train_loss, test_loss, weight_norm])
+
+for wd in wd_values:
+    train_loss, test_loss, weight_norm = run_similarity_routed_weight_decay(wd)
+    results.append(["similarity routed", wd, train_loss, test_loss, weight_norm])
+
+for row in results:
+    print(row)
+```
 
 ### 13.4 What To Learn
 
@@ -1920,7 +1987,32 @@ Examples in this project:
 - train with balanced regions, test with imbalanced regions
 - test with shifted region prototypes
 
-### 14.2 Mixture Shift In `experiments.ipynb`
+### 14.2 What To Measure
+
+Record:
+
+```text
+shift_type | model_type | train_loss | test_loss | router_accuracy | region_usage
+```
+
+Also compute per-region test loss:
+
+Type `per_region_mse` into `metrics.py`.
+
+```python
+def per_region_mse(y_hat, y, region_ids, num_regions):
+    values = []
+    for r in range(num_regions):
+        mask = region_ids == r
+        if mask.any():
+            mse = ((y_hat[mask] - y[mask]) ** 2).mean()
+            values.append(mse.item())
+        else:
+            values.append(None)
+    return values
+```
+
+### 14.3 Mixture Shift In `experiments.ipynb`
 
 Training mixture:
 
@@ -1956,7 +2048,7 @@ X_test, y_test, test_region_ids = make_sparse_regression_data(
 )
 ```
 
-### 14.3 Noise Shift In `experiments.ipynb`
+### 14.4 Noise Shift In `experiments.ipynb`
 
 Train:
 
@@ -1980,29 +2072,118 @@ X_test, y_test, test_region_ids = make_sparse_regression_data(
 )
 ```
 
-### 14.4 What To Measure
-
-Record:
-
-```text
-shift_type | model_type | train_loss | test_loss | router_accuracy | region_usage
-```
-
-Also compute per-region test loss:
-
-Type `per_region_mse` into `metrics.py`.
+Type this into `experiments.ipynb`.
 
 ```python
-def per_region_mse(y_hat, y, region_ids, num_regions):
-    values = []
-    for r in range(num_regions):
-        mask = region_ids == r
-        if mask.any():
-            mse = ((y_hat[mask] - y[mask]) ** 2).mean()
-            values.append(mse.item())
-        else:
-            values.append(None)
-    return values
+def run_global_on_current_data():
+    w = torch.randn(num_features, requires_grad=True)
+    b = torch.zeros((), requires_grad=True)
+
+    for epoch in range(200):
+        y_hat = predict_regression(X_train, w, b)
+        loss = squared_loss(y_hat, y_train)
+        loss.backward()
+        sgd([w, b], lr=0.01)
+
+    with torch.no_grad():
+        train_pred = predict_regression(X_train, w, b)
+        test_pred = predict_regression(X_test, w, b)
+
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+        per_region_test_loss = per_region_mse(
+            test_pred, y_test, test_region_ids, num_regions
+        )
+
+    return train_loss.item(), test_loss.item(), None, None, per_region_test_loss
+
+
+def run_similarity_routed_on_current_data():
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    for epoch in range(200):
+        route_ids = similarity_routes(X_train, region_table)
+
+        loss = routed_regression_loss(
+            X_train, y_train, expert_W, expert_b, route_ids
+        )
+
+        loss.backward()
+        sgd([expert_W, expert_b], lr=0.03)
+
+    with torch.no_grad():
+        train_routes = similarity_routes(X_train, region_table)
+        test_routes = similarity_routes(X_test, region_table)
+
+        train_pred = routed_predict_with_routes(
+            X_train, expert_W, expert_b, train_routes
+        )
+        test_pred = routed_predict_with_routes(
+            X_test, expert_W, expert_b, test_routes
+        )
+
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+        router_accuracy = (test_routes == test_region_ids).float().mean().item()
+        region_usage = torch.bincount(train_routes, minlength=num_regions).tolist()
+        per_region_test_loss = per_region_mse(
+            test_pred, y_test, test_region_ids, num_regions
+        )
+
+    return (
+        train_loss.item(),
+        test_loss.item(),
+        router_accuracy,
+        region_usage,
+        per_region_test_loss,
+    )
+
+
+def run_shift_experiment(shift_type, train_mixture, test_mixture, train_feature_noise=0.3, test_feature_noise=0.3):
+    global X_train, y_train, train_region_ids
+    global X_test, y_test, test_region_ids
+
+    X_train, y_train, train_region_ids = make_sparse_regression_data(
+        500, region_table, true_W, true_b, train_mixture, feature_noise=train_feature_noise
+    )
+
+    X_test, y_test, test_region_ids = make_sparse_regression_data(
+        200, region_table, true_W, true_b, test_mixture, feature_noise=test_feature_noise
+    )
+
+    rows = []
+
+    train_loss, test_loss, router_accuracy, region_usage, per_region_loss = run_global_on_current_data()
+    rows.append([shift_type, "global", train_loss, test_loss, router_accuracy, region_usage, per_region_loss])
+
+    train_loss, test_loss, router_accuracy, region_usage, per_region_loss = run_similarity_routed_on_current_data()
+    rows.append([shift_type, "similarity routed", train_loss, test_loss, router_accuracy, region_usage, per_region_loss])
+
+    return rows
+
+
+train_mixture = torch.tensor([0.45, 0.45, 0.05, 0.05])
+test_mixture = torch.tensor([0.05, 0.05, 0.45, 0.45])
+
+results = []
+
+results += run_shift_experiment(
+    "mixture shift",
+    train_mixture,
+    test_mixture,
+)
+
+results += run_shift_experiment(
+    "mixture + noise shift",
+    train_mixture,
+    test_mixture,
+    train_feature_noise=0.2,
+    test_feature_noise=1.0,
+)
+
+for row in results:
+    print(row)
 ```
 
 ### 14.5 What To Learn
