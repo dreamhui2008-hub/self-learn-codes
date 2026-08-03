@@ -213,30 +213,50 @@ cosine(a, b) = dot(a, b) / (norm(a) * norm(b))
 
 * If two vectors point in similar directions, cosine similarity is high.
 
+# 10.6 Break It Deliberately
+Try:
+* remove normalization:
+> * `make_region_table` already creates unit-length prototypes, so removing `normalize_rows(X)` should not change top-1 routing much, and often should give the same predicted ids
 
-  ## Stopping Point
+* increase feature_noise from 0.3 to 2.0: 
+> * Router accuracy should drop because examples are no longer close to their assigned region prototypes.
 
-  Date: 2026-07-20
+* set all region prototypes to the same vector:
+> * Router accuracy collapesed to random average (1/4) because every region has the same similarity score and the router cannot distinguish regions
 
-  Current phase:
-  Completed through 7.10 Checkpoint.
+* use k=2: Router accuracy improved by 5% (from 0.91 to 0.94)?
+> * Top-2 routing accuracy improved because the correct region only needs to appear among the two selected regions. This is easier than top-1, so accuracy should be higher.
 
-  Working state:
-  - venv works
-  - torch imports
-  - Phase 1 functions typed:
-    - data.py: make_regression_data, train_test_split
-    - models.py: predict_regression, squared_loss
-    - train.py: sgd
-  - safe_import cell works / should be used in experiments.ipynb
-  - 7.6 training loop ran
-  - 7.7 evaluation ran
-  - 7.9 break-it experiments done
-  - 7.10 checkpoint answered
+# 10.7 Common Confusion Points
+* Routing accuracy is not model accuracy.
+* The router can be right while the expert is untrained.
+* The expert can learn if routing is noisy, but the job becomes harder.
+* The router uses input geometry, not labels.
 
-  Next step:
-  Start Phase 2: Multiple Regions With Different Hidden Rules.
-  Begin with 8.2 make_region_table in data.py.
+## Stopping Point
 
-  Prompt:
-  Read my notes.md and continue from the stopping point.
+Date: 2026-08-03
+
+Current phase:
+Completed through 10.7 Common Confusion Points.
+
+Working state:
+- venv works
+- torch imports
+- safe_import cell works / should be used in experiments.ipynb
+- Phase 1 linear regression completed through 7.10
+- Phase 2 multiple-region data notes completed through 8.7
+- Phase 3 global linear model experiment completed through 9.4
+- Phase 4 similarity router completed through 10.7
+- 10.6 break-it experiments done:
+  - remove normalization
+  - increase feature_noise from 0.3 to 2.0
+  - set all region prototypes to the same vector
+  - use k=2
+
+Next step:
+Start Phase 5: Routed Regression Experts.
+Begin with 11.2 Expert Parameter Shapes in experiments.ipynb.
+
+Prompt:
+Read my notes.md and continue from the stopping point.
