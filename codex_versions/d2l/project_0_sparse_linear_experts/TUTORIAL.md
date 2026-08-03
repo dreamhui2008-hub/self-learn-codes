@@ -1680,13 +1680,123 @@ route_ids = region_ids
 
 ### 12.3 Experiment Table
 
-Run the same training loop with:
+Enter the following into `experiments.ipynb`: 
 
-```text
-global model
-routed experts with oracle routing
-routed experts with random routing
-routed experts with similarity routing
+```python
+# Clean normal data setup
+torch.manual_seed(0)
+
+num_regions = 4
+num_features = 6
+
+region_table = make_region_table(num_regions, num_features)
+true_W, true_b = make_region_rules(num_regions, num_features)
+mixture = torch.tensor([0.25, 0.25, 0.25, 0.25])
+
+X, y, region_ids = make_sparse_regression_data(
+    500, region_table, true_W, true_b, mixture
+)
+
+(
+    X_train,
+    y_train,
+    train_region_ids,
+    X_test,
+    y_test,
+    test_region_ids,
+) = train_test_split_with_regions(X, y, region_ids)
+
+def routed_predict_with_routes(X, expert_W, expert_b, route_ids):
+    y_hat = torch.zeros(X.shape[0])
+
+    for r in range(expert_W.shape[0]):
+        mask = route_ids == r
+        if mask.any():
+            y_hat[mask] = X[mask] @ expert_W[r] + expert_b[r]
+
+    return y_hat
+
+# Glboal model
+w = torch.randn(num_features, requires_grad=True)
+b = torch.zeros((), requires_grad=True)
+
+for epoch in range(200):
+    y_hat = predict_regression(X_train, w, b)
+    loss = squared_loss(y_hat, y_train)
+    loss.backward()
+    sgd([w, b], lr=0.01)
+
+with torch.no_grad():
+    global_train_loss = squared_loss(predict_regression(X_train, w, b), y_train)
+    global_test_loss = squared_loss(predict_regression(X_test, w, b), y_test)
+
+def run_routed_experiment(routing_type):
+    expert_W = torch.randn(num_regions, num_features, requires_grad=True)
+    expert_b = torch.zeros(num_regions, requires_grad=True)
+
+    for epoch in range(200):
+        if routing_type == "oracle":
+            route_ids = train_region_ids
+        elif routing_type == "random":
+            route_ids = random_routes(X_train.shape[0], num_regions)
+        elif routing_type == "similarity":
+            route_ids = similarity_routes(X_train, region_table)
+
+        loss = routed_regression_loss(
+            X_train, y_train, expert_W, expert_b, route_ids
+        )
+        loss.backward()
+        sgd([expert_W, expert_b], lr=0.03)
+
+    with torch.no_grad():
+        if routing_type == "oracle":
+            train_routes = train_region_ids
+            test_routes = test_region_ids
+            router_acc = 1.0
+
+        elif routing_type == "random":
+            train_routes = random_routes(X_train.shape[0], num_regions)
+            test_routes = random_routes(X_test.shape[0], num_regions)
+            router_acc = (test_routes == test_region_ids).float().mean().item()
+
+        elif routing_type == "similarity":
+            train_routes = similarity_routes(X_train, region_table)
+            test_routes = similarity_routes(X_test, region_table)
+            router_acc = (test_routes == test_region_ids).float().mean().item()
+
+        train_pred = routed_predict_with_routes(
+            X_train, expert_W, expert_b, train_routes
+        )
+        test_pred = routed_predict_with_routes(
+            X_test, expert_W, expert_b, test_routes
+        )
+        train_loss = squared_loss(train_pred, y_train)
+        test_loss = squared_loss(test_pred, y_test)
+
+    return train_loss.item(), test_loss.item(), router_acc
+
+results = []
+
+results.append([
+    "global",
+    "none",
+    global_train_loss.item(),
+    global_test_loss.item(),
+    None,
+])
+
+for routing_type in ["oracle", "random", "similarity"]:
+    train_loss, test_loss, router_acc = run_routed_experiment(routing_type)
+    results.append([
+        "routed experts",
+        routing_type,
+        train_loss,
+        test_loss,
+        router_acc,
+    ])
+
+for row in results:
+    print(row)
 ```
 
 Record:

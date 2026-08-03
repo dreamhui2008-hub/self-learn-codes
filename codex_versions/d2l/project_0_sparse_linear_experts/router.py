@@ -33,3 +33,12 @@ def route_topk(X, region_table, k=1):
     # top_scores  = cosine scores for those chosen ids
     # scores      = full similarity table against all regions
     return top_ids, top_scores, scores
+
+# Choose random regions
+def random_routes(num_examples, num_regions):
+    return torch.randint(0, num_regions, (num_examples,))
+
+# Use cosine similarity to region table
+def similarity_routes(X, region_table):
+    top_ids, _, _ = route_topk(X, region_table, k=1)
+    return top_ids.squeeze(1)

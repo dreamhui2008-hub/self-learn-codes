@@ -276,6 +276,18 @@ You are ready to move on when you can explain:
 > * Because each expert only trains on examples routed to it, not the whole dataset.
 > * The routed model uses one training loop, one combined loss, and one optimizer step, but the mask makes each expert specialize on its assigned subset.
 
+# 12.4 What To Learn
+* If oracle routing is much better than similarity routing:
+> * The expert model can work, but the **router**is weak.
+
+If similarity routing is much better than random routing:
+> * The **region table** carries useful information.
+
+If global model matches routed experts:
+> * The **regions** may not actually have different enough rules, or the task is too easy.
+
+If all models fail:
+> * The learning rate, data, labels, or loss code may be broken.
 
 ## Stopping Point
 
