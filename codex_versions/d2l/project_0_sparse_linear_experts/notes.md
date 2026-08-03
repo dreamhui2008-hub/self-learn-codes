@@ -233,6 +233,50 @@ Try:
 * The expert can learn if routing is noisy, but the job becomes harder.
 * The router uses input geometry, not labels.
 
+# 11.8 Checkpoint
+You are ready to move on when you can explain:
+
+* why expert_W has shape [regions, features]
+> * Because each row is one expert's weight vector. `expert_W[r]` has shape `[features]`, so examples routed to region `r` can compute `X[mask] @ expert_W[r]`.
+> * Rule of thumb for weight shape in MoEs:
+> * One selected expert row:
+
+  ```
+  X[mask] @ expert_W[r]
+  ```
+
+> * All experts at once:
+
+  ```
+  X @ expert_W.T
+  ```
+
+> * Rule of thumb for weight shape in linear regression:
+> * PyTorch nn.Linear manually:
+
+  ```
+  X @ layer.weight.T + layer.bias
+  ```
+
+> * PyTorch nn.Linear normally:
+
+  ```
+  layer(X)
+  ```
+
+* why route_ids has shape [batch]
+> * Because every example in `X` needs one expert ID. `route_ids[i]` tells us which expert should handle `X[i]`.
+* why masks are needed
+> * For expert `r`, `mask = route_ids == r` picks the rows of `X` and `y` that expert `r` should train on or predict for.
+* why some experts may receive no update
+> * An expert receives no update when no examples are routed to it.
+> * Then its mask is all `False`, it does not participate in the loss computation, and no gradient is produced for that expert's weights or bias.
+> * If it sees 2 examples, it still receives an update, just based on very little data.
+* why this is not the same as training four separate global models manually
+> * Because each expert only trains on examples routed to it, not the whole dataset.
+> * The routed model uses one training loop, one combined loss, and one optimizer step, but the mask makes each expert specialize on its assigned subset.
+
+
 ## Stopping Point
 
 Date: 2026-08-03
