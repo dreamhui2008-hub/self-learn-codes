@@ -376,18 +376,39 @@ Section-by-section:
 13.3 norm check: run in notebook after each experiment
 14.2-14.3 shifted data generation: run in notebook
 14.4 per_region_mse: type/save only
-15.2-15.3 classification data functions: type/save only
-15.4 global softmax training: run in notebook; accuracy function: type/save only
-15.5 routed logits function: type/save only; routed training loop: run in notebook
-15.7 experiment table: run variants and fill notes/table
-16.3 top2 function: type/save only
-16.4 top-2 comparison: run variants in notebook
-17.2 local update gate: run inside a modified routed training loop
-18.2 rescale function: type/save only; rescale call: run inside a modified training loop
-19.2 ReplayBuffer class: type/save only
-19.3 replay comparison: run variants in notebook
+15.2 exact run order: checklist, not code
+15.3 logits/argmax drill: run in notebook
+15.4 cross-entropy drill: run in notebook
+15.5 bincount drill: run in notebook
+15.6 classification data helpers: type/save only
+15.7 routed classification model drills: run in notebook; final routed_classification_logits: type/save only
+15.8 accuracy: type/save only; rerun notebook import/reload cell
+15.9 classification data-shape drill: run in notebook
+15.10 full classification experiment cell: run in notebook after reading block grammar
+15.11 checkpoint: write answers in notes.md
+16.2 exact run order: checklist, not code
+16.3 top-k drill: run in notebook
+16.4 top-2 prediction table drills: run in notebook; final top2_routed_predict_regression: type/save only; rerun notebook import/reload cell
+16.5 full top-1 vs top-2 experiment cell: run in notebook after reading block grammar
+16.6 checkpoint: write answers in notes.md
+17.2 exact run order: checklist, not code
+17.3 threshold gate drill: run in notebook
+17.4 gated helper grammar drills: run in notebook; full gated-update experiment cell: run in notebook
+17.5 checkpoint: write answers in notes.md
+18.2 exact run order: checklist, not code
+18.3 norms/rescaling drill: run in notebook
+18.4 in-place rescale grammar drill: run in notebook; final rescale_expert_weights: type/save only; rerun notebook import/reload cell
+18.5 full scaling experiment cell: run in notebook after reading block grammar
+18.6 checkpoint: write answers in notes.md
+19.2 exact run order: checklist, not code
+19.3 torch.cat drill: run in notebook
+19.4 replay storage grammar drills: run in notebook; final ReplayBuffer class: type/save only; rerun notebook import/reload cell
+19.5 replay add/sample drill: run in notebook
+19.6 batch-mixing grammar drill: run in notebook; full curriculum replay experiment cell: run in notebook
+19.7 checkpoint: write answers in notes.md
 20 required experiment matrix: checklist, not code
-21 confusion_matrix: type/save only
+21.3 confusion_matrix: type/save only; rerun notebook import/reload cell
+21.4 confusion matrix drill: run in notebook
 22 notes template: write in notes.md
 23 debugging snippets: run only when debugging
 ```
@@ -2258,11 +2279,12 @@ Use this order:
 3. Run the cross-entropy drill.
 4. Run the bincount drill.
 5. Add classification helpers to data.py.
-6. Add classification helpers to models.py and metrics.py.
-7. Rerun the notebook import/reload cell.
-8. Run the classification data-shape drill.
-9. Run the full classification experiment cell.
-10. Write the checkpoint answers in notes.md.
+6. Run the routed classification model drills.
+7. Add classification helpers to models.py and metrics.py.
+8. Rerun the notebook import/reload cell.
+9. Run the classification data-shape drill.
+10. Run the full classification experiment cell.
+11. Write the checkpoint answers in notes.md.
 ```
 
 ### 15.3 Syntax Preflight: Logits And `argmax`
@@ -2466,6 +2488,243 @@ Why this exists:
 
 ### 15.7 File Edit: Classification Model In `models.py`
 
+This section is a block-grammar drill.
+
+Do not start by memorizing the full function.
+
+Learn this repeated pattern first:
+
+```text
+allocate output table
+for each expert r:
+    build mask for rows routed to r
+    run only those rows through expert r
+    write those rows back into the output table
+return the filled output table
+```
+
+The function you will type at the end is only this pattern packaged inside `def`.
+
+#### 15.7.1 Tiny Routed Classification Shapes
+
+Purpose:
+
+Create the smallest concrete version of the tensors used by routed classification.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+torch.manual_seed(0)
+
+# Five examples, each with six input features.
+X_small = torch.randn(5, 6)
+
+# Four experts.
+# Each expert maps six input features to three class logits.
+expert_W_small = torch.randn(4, 6, 3)
+
+# Four experts.
+# Each expert has one bias per class.
+expert_b_small = torch.zeros(4, 3)
+
+# One route ID per example.
+# These are expert IDs, not class labels.
+route_ids_small = torch.tensor([0, 2, 2, 1, 3])
+
+# The output must have one class-score row per input example.
+num_examples = X_small.shape[0]
+num_classes = expert_b_small.shape[1]
+logits_small = torch.zeros(num_examples, num_classes)
+
+print("X_small:", X_small.shape)
+print("expert_W_small:", expert_W_small.shape)
+print("expert_b_small:", expert_b_small.shape)
+print("route_ids_small:", route_ids_small.shape)
+print("logits_small:", logits_small.shape)
+```
+
+Expected shape pattern:
+
+```text
+X_small: torch.Size([5, 6])
+expert_W_small: torch.Size([4, 6, 3])
+expert_b_small: torch.Size([4, 3])
+route_ids_small: torch.Size([5])
+logits_small: torch.Size([5, 3])
+```
+
+Mechanical meaning:
+
+- `X_small[i]` is one input example.
+- `route_ids_small[i]` says which expert handles `X_small[i]`.
+- `expert_W_small[r]` is the classifier weight matrix for expert `r`.
+- `logits_small[i]` will store three raw class scores for `X_small[i]`.
+
+Important distinction:
+
+```text
+route_ids: expert IDs
+labels/y:  class IDs
+```
+
+They are both integer vectors, but they are not the same thing.
+
+#### 15.7.2 Boolean Mask Drill
+
+Purpose:
+
+Select only the examples routed to one expert.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+r = 2
+mask = route_ids_small == r
+
+print("route_ids_small:", route_ids_small)
+print("mask:", mask)
+print("X_small[mask] shape:", X_small[mask].shape)
+print("selected routes:", route_ids_small[mask])
+```
+
+Expected pattern:
+
+```text
+mask: tensor([False,  True,  True, False, False])
+X_small[mask] shape: torch.Size([2, 6])
+selected routes: tensor([2, 2])
+```
+
+Mechanical meaning:
+
+- `mask` has one boolean per example.
+- `True` means "this row goes to expert `r`."
+- `X_small[mask]` keeps only the rows handled by expert `2`.
+
+#### 15.7.3 One-Expert Logit Drill
+
+Purpose:
+
+Run the selected rows through one expert's classifier.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+r = 2
+mask = route_ids_small == r
+
+X_for_r = X_small[mask]
+W_for_r = expert_W_small[r]
+b_for_r = expert_b_small[r]
+
+logits_for_r = X_for_r @ W_for_r + b_for_r
+
+print("X_for_r:", X_for_r.shape)
+print("W_for_r:", W_for_r.shape)
+print("b_for_r:", b_for_r.shape)
+print("logits_for_r:", logits_for_r.shape)
+```
+
+Expected shape pattern:
+
+```text
+X_for_r: torch.Size([2, 6])
+W_for_r: torch.Size([6, 3])
+b_for_r: torch.Size([3])
+logits_for_r: torch.Size([2, 3])
+```
+
+Mechanical meaning:
+
+```text
+[examples_for_r, features] @ [features, classes] -> [examples_for_r, classes]
+```
+
+So expert `2` produces one three-class logit row for each example routed to expert `2`.
+
+#### 15.7.4 Fill-Back Drill
+
+Purpose:
+
+Write one expert's computed logits back into the correct rows of the shared output table.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+logits_small = torch.zeros(X_small.shape[0], expert_b_small.shape[1])
+
+r = 2
+mask = route_ids_small == r
+logits_for_r = X_small[mask] @ expert_W_small[r] + expert_b_small[r]
+
+logits_small[mask] = logits_for_r
+
+print("filled row indices:", torch.where(mask)[0])
+print("logits_small:", logits_small)
+```
+
+Mechanical meaning:
+
+- `logits_for_r` has shape `[examples_for_r, classes]`.
+- `logits_small[mask]` selects the same number of output rows.
+- The assignment fills only rows routed to expert `r`.
+- Other rows are still zero because no other expert has filled them yet.
+
+#### 15.7.5 Full Loop Drill
+
+Purpose:
+
+Run the whole routed forward pass once, but not inside a function yet.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+logits_small = torch.zeros(X_small.shape[0], expert_b_small.shape[1])
+
+for r in range(expert_W_small.shape[0]):
+    mask = route_ids_small == r
+    print("expert", r, "count", mask.sum().item())
+
+    if mask.any():
+        logits_small[mask] = X_small[mask] @ expert_W_small[r] + expert_b_small[r]
+
+pred_small = logits_small.argmax(dim=1)
+
+print("logits_small shape:", logits_small.shape)
+print("pred_small shape:", pred_small.shape)
+print("pred_small:", pred_small)
+```
+
+Expected shape pattern:
+
+```text
+logits_small shape: torch.Size([5, 3])
+pred_small shape: torch.Size([5])
+```
+
+Mechanical meaning:
+
+- The loop visits every expert ID: `0`, `1`, `2`, `3`.
+- Each expert only processes rows whose `route_ids_small` equal that expert ID.
+- Every valid input row gets exactly one output logit row.
+- `argmax(dim=1)` is only for converting logits to predicted classes after logits exist.
+
+Do not put `argmax` inside `routed_classification_logits`.
+
+The model helper should return raw logits because `F.cross_entropy` needs raw logits.
+
+#### 15.7.6 File Edit: Full Function
+
 Action:
 
 Add this function to `models.py`.
@@ -2504,11 +2763,11 @@ def routed_classification_logits(X, expert_W, expert_b, route_ids):
 Shape contract:
 
 ```text
-X:        [batch, features]
-expert_W: [regions, features, classes]
-expert_b: [regions, classes]
+X:         [batch, features]
+expert_W:  [regions, features, classes]
+expert_b:  [regions, classes]
 route_ids: [batch]
-logits:   [batch, classes]
+logits:    [batch, classes]
 ```
 
 Comparison with routed regression:
@@ -2520,6 +2779,28 @@ classification expert_W[r]: [features, classes]
 regression output:          [batch]
 classification output:      [batch, classes]
 ```
+
+#### 15.7.7 Trace Checklist
+
+Before moving on, trace the function with these questions:
+
+```text
+1. What does one row of X represent?
+2. What does one value in route_ids represent?
+3. What is the shape of expert_W[r]?
+4. Why does X[mask] @ expert_W[r] produce class logits?
+5. Why does logits[mask] have the same row count as X[mask]?
+6. Why does this function return logits instead of predicted classes?
+7. Why are route IDs not the same thing as class labels?
+```
+
+Common failure modes:
+
+- using class labels as `route_ids`
+- returning `argmax` predictions instead of logits
+- applying softmax inside the helper
+- forgetting `if mask.any()`
+- making `expert_W` shape `[regions, classes, features]` instead of `[regions, features, classes]`
 
 ### 15.8 File Edit: Accuracy In `metrics.py`
 
@@ -2594,6 +2875,54 @@ Suspicious output:
 Purpose:
 
 Compare global classification against oracle, random, and similarity-routed classifier experts.
+
+Block grammar:
+
+Do not read this as one large code blob.
+
+Read it as five smaller blocks:
+
+```text
+1. Build one synthetic classification dataset.
+2. Split the dataset into train/test tensors.
+3. Define run_global_classifier().
+4. Define run_routed_classifier(routing_type).
+5. Run each condition and print rows.
+```
+
+The two helper functions have the same internal shape:
+
+```text
+initialize fresh trainable parameters
+for epoch in range(200):
+    compute logits
+    compute cross-entropy loss
+    backward
+    sgd
+evaluate without gradients
+return plain Python numbers
+```
+
+The routed helper adds one extra step inside training:
+
+```text
+routing_type -> route_ids -> routed_classification_logits -> cross_entropy
+```
+
+Trace before running:
+
+```text
+global classifier:
+    X_train @ W + b -> logits
+
+routed classifier:
+    route_ids choose expert rows
+    routed_classification_logits(...) -> logits
+
+both:
+    logits + y_train -> cross_entropy
+    logits.argmax(dim=1) -> accuracy
+```
 
 Action:
 
@@ -2906,10 +3235,11 @@ Use this order:
 ```text
 1. Run the notebook import/reload cell.
 2. Run the top-k shape drill.
-3. Add top2_routed_predict_regression to models.py.
-4. Rerun the notebook import/reload cell.
-5. Run the full top-1 vs top-2 experiment cell.
-6. Write the checkpoint answers in notes.md.
+3. Run the top-2 prediction table drills.
+4. Add top2_routed_predict_regression to models.py.
+5. Rerun the notebook import/reload cell.
+6. Run the full top-1 vs top-2 experiment cell.
+7. Write the checkpoint answers in notes.md.
 ```
 
 ### 16.3 Syntax Preflight: `route_topk(..., k=2)`
@@ -2950,6 +3280,137 @@ Mechanical meaning:
 - `top_ids[:, 1]` is a `[batch]` vector of second-choice routes.
 
 ### 16.4 File Edit: Top-2 Regression Predictor In `models.py`
+
+This section is another block-grammar drill.
+
+The repeated pattern is:
+
+```text
+ask router for two route columns
+allocate two prediction columns
+for each top-k slot j:
+    pull route_ids = top_ids[:, j]
+    fill preds[:, j] using the routed regression pattern
+average the two columns
+return averaged predictions and top_ids
+```
+
+The new piece is not routing itself.
+
+The new piece is keeping two route columns and two prediction columns aligned.
+
+#### 16.4.1 Top-2 Route Columns
+
+Purpose:
+
+Separate the `[batch, 2]` top-k table into two ordinary `[batch]` route vectors.
+
+Action:
+
+Run this in `experiments.ipynb` after the `16.3` top-k drill.
+
+```python
+first_routes = top_ids[:, 0]
+second_routes = top_ids[:, 1]
+
+print("top_ids:", top_ids.shape)
+print("first_routes:", first_routes.shape, first_routes)
+print("second_routes:", second_routes.shape, second_routes)
+```
+
+Expected shape pattern:
+
+```text
+top_ids: torch.Size([5, 2])
+first_routes: torch.Size([5])
+second_routes: torch.Size([5])
+```
+
+Mechanical meaning:
+
+- `top_ids[:, 0]` can be used exactly like ordinary top-1 `route_ids`.
+- `top_ids[:, 1]` is another ordinary route vector for the second-choice expert.
+- Top-2 prediction repeats the routed regression fill pattern once per column.
+
+#### 16.4.2 One Prediction Column Drill
+
+Purpose:
+
+Fill only one column of a two-column prediction table.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+torch.manual_seed(0)
+
+expert_W_small = torch.randn(4, 6)
+expert_b_small = torch.zeros(4)
+preds_small = torch.zeros(X_small.shape[0], 2)
+
+j = 0
+route_ids = top_ids[:, j]
+
+for r in range(expert_W_small.shape[0]):
+    mask = route_ids == r
+
+    if mask.any():
+        preds_small[mask, j] = X_small[mask] @ expert_W_small[r] + expert_b_small[r]
+
+print("route_ids:", route_ids.shape)
+print("preds_small:", preds_small.shape)
+print(preds_small)
+```
+
+Mechanical meaning:
+
+- `j = 0` means fill the first-choice prediction column.
+- `preds_small[:, 1]` stays zero because this drill has not filled the second-choice column yet.
+- The inner loop is the same mask/fill grammar used in routed regression.
+
+#### 16.4.3 Full Two-Column Drill
+
+Purpose:
+
+Fill both top-2 prediction columns, then average them.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+preds_small = torch.zeros(X_small.shape[0], 2)
+
+for j in range(2):
+    route_ids = top_ids[:, j]
+
+    for r in range(expert_W_small.shape[0]):
+        mask = route_ids == r
+
+        if mask.any():
+            preds_small[mask, j] = X_small[mask] @ expert_W_small[r] + expert_b_small[r]
+
+top2_pred_small = preds_small.mean(dim=1)
+
+print("preds_small:", preds_small.shape)
+print("top2_pred_small:", top2_pred_small.shape)
+```
+
+Expected shape pattern:
+
+```text
+preds_small: torch.Size([5, 2])
+top2_pred_small: torch.Size([5])
+```
+
+Mechanical meaning:
+
+- `preds_small[i, 0]` is example `i`'s first expert prediction.
+- `preds_small[i, 1]` is example `i`'s second expert prediction.
+- `preds_small.mean(dim=1)` collapses the two expert predictions into one regression prediction per example.
+
+#### 16.4.4 File Edit: Full Function
 
 Action:
 
@@ -2998,11 +3459,44 @@ Expected import output:
 No SKIP line for models.top2_routed_predict_regression
 ```
 
+Trace checklist:
+
+```text
+1. Why does top_ids have two columns?
+2. Why is top_ids[:, j] a normal route_ids vector?
+3. What does preds[i, 0] store?
+4. What does preds[i, 1] store?
+5. Why does preds.mean(dim=1) return shape [batch]?
+6. Why does this function return top_ids as well as predictions?
+```
+
 ### 16.5 Full Top-1 Vs Top-2 Experiment Cell
 
 Purpose:
 
 Train the usual similarity-routed regression experts, then evaluate the same trained experts with top-1 and top-2 prediction.
+
+Block grammar:
+
+Read this full cell as four blocks:
+
+```text
+1. Build one regression dataset.
+2. Train ordinary top-1 similarity-routed experts.
+3. Evaluate the same trained experts two ways:
+       top-1 prediction
+       top-2 averaged prediction
+4. Print two comparable result rows.
+```
+
+The important experiment design detail:
+
+```text
+training uses top-1
+evaluation compares top-1 vs top-2
+```
+
+So if top-2 improves or worsens the result, that change comes from the evaluation-time prediction rule, not from retraining different experts.
 
 Action:
 
@@ -3206,8 +3700,9 @@ Use this order:
 ```text
 1. Run the notebook import/reload cell.
 2. Run the threshold drill.
-3. Run the full gated-update experiment cell.
-4. Write the checkpoint answers in notes.md.
+3. Run the gated helper grammar drill.
+4. Run the full gated-update experiment cell.
+5. Write the checkpoint answers in notes.md.
 ```
 
 ### 17.3 Syntax Preflight: Threshold Gate
@@ -3247,6 +3742,104 @@ Mechanical meaning:
 Purpose:
 
 Compare normal routed regression against threshold-gated routed regression.
+
+Block grammar:
+
+The full cell has two loops at different levels:
+
+```text
+inner loop:
+    one model trains for 200 possible epochs
+    threshold decides whether each epoch updates
+
+outer loop:
+    run a fresh model for each threshold condition
+    collect one result row per condition
+```
+
+The helper function has this shape:
+
+```text
+def run_gated_similarity_regression(threshold):
+    initialize fresh expert_W, expert_b
+    update_count = 0
+
+    for epoch in range(200):
+        compute route_ids
+        compute loss
+
+        if threshold is None or loss.item() > threshold:
+            backward
+            sgd
+            update_count += 1
+
+    evaluate final model
+    return update_count and metrics
+```
+
+#### 17.4.1 Gated Helper Grammar Drill
+
+Purpose:
+
+Separate "possible epochs" from "actual updates."
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+threshold = 0.5
+loss_values = [1.2, 0.4, 0.8, 0.3]
+update_count = 0
+
+for epoch, loss_value in enumerate(loss_values):
+    if loss_value > threshold:
+        update_count += 1
+        decision = "backward + sgd"
+    else:
+        decision = "skip"
+
+    print(epoch, loss_value, decision, "updates so far:", update_count)
+```
+
+Expected pattern:
+
+```text
+0 1.2 backward + sgd updates so far: 1
+1 0.4 skip updates so far: 1
+2 0.8 backward + sgd updates so far: 2
+3 0.3 skip updates so far: 2
+```
+
+Mechanical meaning:
+
+- The loop still runs four possible epochs.
+- Only two of those epochs update parameters.
+- `update_count` measures optimizer steps, not loop iterations.
+
+#### 17.4.2 Threshold Condition Table
+
+Purpose:
+
+See why `threshold=None` means ordinary training.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+loss_value = 0.3
+
+for threshold in [None, 0.2, 0.5]:
+    should_update = threshold is None or loss_value > threshold
+    print("threshold:", threshold, "should_update:", should_update)
+```
+
+Mechanical meaning:
+
+- `threshold is None` bypasses the comparison.
+- A numeric threshold only updates when the current loss is larger than the threshold.
+- High thresholds can skip too many updates.
 
 Action:
 
@@ -3448,10 +4041,11 @@ Use this order:
 
 ```text
 1. Run the norm/rescale drill.
-2. Add rescale_expert_weights to train.py.
-3. Rerun the notebook import/reload cell.
-4. Run the full scaling experiment cell.
-5. Write the checkpoint answers in notes.md.
+2. Run the in-place rescale grammar drill.
+3. Add rescale_expert_weights to train.py.
+4. Rerun the notebook import/reload cell.
+5. Run the full scaling experiment cell.
+6. Write the checkpoint answers in notes.md.
 ```
 
 ### 18.3 Syntax Preflight: Norms And Rescaling
@@ -3490,6 +4084,52 @@ Mechanical meaning:
 
 ### 18.4 File Edit: `rescale_expert_weights` In `train.py`
 
+This helper is short, but it introduces a new kind of operation:
+
+```text
+change the parameter tensor directly outside autograd
+```
+
+That is why the function uses `with torch.no_grad()`.
+
+#### 18.4.1 In-Place Rescale Grammar Drill
+
+Purpose:
+
+Distinguish "create a scaled copy" from "modify the original tensor."
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+W_demo = torch.tensor([
+    [3.0, 4.0],
+    [6.0, 8.0],
+])
+
+norms = W_demo.norm(dim=1, keepdim=True)
+scale = 1.0 / (norms + 1e-8)
+
+W_copy = W_demo * scale
+
+print("original after copy scaling:", W_demo)
+print("scaled copy:", W_copy)
+
+W_demo *= scale
+
+print("original after in-place scaling:", W_demo)
+print("row norms:", W_demo.norm(dim=1))
+```
+
+Mechanical meaning:
+
+- `W_copy = W_demo * scale` creates a new tensor.
+- `W_demo *= scale` changes `W_demo` itself.
+- `rescale_expert_weights` uses the in-place version because it is meant to modify trained expert weights.
+
+#### 18.4.2 File Edit: Full Function
+
 Action:
 
 Add this function to `train.py`.
@@ -3524,6 +4164,38 @@ No SKIP line for train.rescale_expert_weights
 Purpose:
 
 Compare ordinary routed regression, weight decay, homeostatic scaling, and both together.
+
+Block grammar:
+
+Read this full cell as:
+
+```text
+1. Build one regression dataset.
+2. Define run_scaling_experiment(wd, use_scaling).
+3. Create a config table.
+4. Run a fresh model for each config.
+5. Print comparable rows.
+```
+
+The condition table controls two independent switches:
+
+```text
+wd:
+    adds weight decay to the loss before backward()
+
+use_scaling:
+    directly rescales expert_W after sgd()
+```
+
+Inside each epoch, the order matters:
+
+```text
+prediction loss
+plus optional weight decay
+backward
+sgd
+optional direct rescale
+```
 
 Action:
 
@@ -3722,11 +4394,12 @@ Use this order:
 
 ```text
 1. Run the torch.cat drill.
-2. Add ReplayBuffer to train.py.
-3. Rerun the notebook import/reload cell.
-4. Run the replay buffer drill.
-5. Run the full curriculum experiment cell.
-6. Write the checkpoint answers in notes.md.
+2. Run the replay storage grammar drills.
+3. Add ReplayBuffer to train.py.
+4. Rerun the notebook import/reload cell.
+5. Run the replay buffer drill.
+6. Run the full curriculum experiment cell.
+7. Write the checkpoint answers in notes.md.
 ```
 
 ### 19.3 Syntax Preflight: `torch.cat`
@@ -3760,6 +4433,122 @@ Mechanical meaning:
 - Feature count must match.
 
 ### 19.4 File Edit: `ReplayBuffer` In `train.py`
+
+This section is a block-grammar drill for a small class.
+
+The repeated pattern is:
+
+```text
+add:
+    store individual detached rows
+    trim lists to max_size
+
+sample:
+    choose random list positions
+    stack selected rows back into tensors
+```
+
+The buffer stores examples as Python lists because it is easier to append and trim one example at a time.
+
+#### 19.4.1 Store Individual Rows Drill
+
+Purpose:
+
+See what `ReplayBuffer.add` does before it is inside a class.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+X_demo = torch.arange(24, dtype=torch.float32).reshape(4, 6)
+y_demo = torch.tensor([0.0, 1.0, 2.0, 3.0])
+
+stored_X = []
+stored_y = []
+
+for i in range(X_demo.shape[0]):
+    stored_X.append(X_demo[i].detach().clone())
+    stored_y.append(y_demo[i].detach().clone())
+
+print("stored rows:", len(stored_X))
+print("first stored X row:", stored_X[0])
+print("first stored y:", stored_y[0])
+```
+
+Mechanical meaning:
+
+- The list stores one example row at a time.
+- Each `stored_X[i]` has shape `[features]`, not `[1, features]`.
+- `detach().clone()` turns a training tensor row into stored data.
+
+#### 19.4.2 Max-Size Trim Drill
+
+Purpose:
+
+See how the buffer forgets oldest examples when it gets too large.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+max_size = 2
+
+stored_X = stored_X[-max_size:]
+stored_y = stored_y[-max_size:]
+
+print("stored rows after trim:", len(stored_X))
+print("remaining y values:", stored_y)
+```
+
+Expected pattern:
+
+```text
+stored rows after trim: 2
+```
+
+Mechanical meaning:
+
+- `stored_X[-max_size:]` keeps the last `max_size` rows.
+- Older rows are dropped.
+- This buffer is a recent-example replay buffer, not an all-history archive.
+
+#### 19.4.3 Sample And Stack Drill
+
+Purpose:
+
+Rebuild a tensor batch from sampled list positions.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+idx = torch.tensor([1, 0, 1])
+
+sample_X = torch.stack([stored_X[int(i)] for i in idx])
+sample_y = torch.stack([stored_y[int(i)] for i in idx])
+
+print("idx:", idx)
+print("sample_X:", sample_X.shape)
+print("sample_y:", sample_y.shape)
+```
+
+Expected shape pattern:
+
+```text
+sample_X: torch.Size([3, 6])
+sample_y: torch.Size([3])
+```
+
+Mechanical meaning:
+
+- `idx` chooses positions inside the stored Python lists.
+- `torch.stack(...)` turns individual stored rows back into a batch.
+- Sampling with repeated indices is allowed.
+
+#### 19.4.4 File Edit: Full Class
 
 Action:
 
@@ -3857,6 +4646,77 @@ Failure check:
 Purpose:
 
 Train first on old regions, then train on new regions. Compare later old-region performance with and without replay.
+
+Block grammar:
+
+Read this full cell as a two-stage curriculum:
+
+```text
+data setup:
+    old training distribution
+    new training distribution
+    old test distribution
+    new test distribution
+
+stage 1:
+    train on old data
+
+stage 2 without replay:
+    train on new data only
+
+stage 2 with replay:
+    train on new data plus sampled old examples
+
+evaluation:
+    measure old-test loss and new-test loss
+```
+
+The experiment question is not just "which loss is lower?"
+
+It is:
+
+```text
+Does replay reduce forgetting on old_test_loss without ruining new_test_loss?
+```
+
+#### 19.6.1 Batch-Mixing Grammar Drill
+
+Purpose:
+
+See exactly what changes when replay is enabled in stage 2.
+
+Action:
+
+Run this in `experiments.ipynb`.
+
+```python
+new_X_demo = torch.randn(5, 6)
+new_y_demo = torch.randn(5)
+
+replay_X_demo = torch.randn(2, 6)
+replay_y_demo = torch.randn(2)
+
+batch_X = torch.cat([new_X_demo, replay_X_demo], dim=0)
+batch_y = torch.cat([new_y_demo, replay_y_demo], dim=0)
+
+print("new_X_demo:", new_X_demo.shape)
+print("replay_X_demo:", replay_X_demo.shape)
+print("batch_X:", batch_X.shape)
+print("batch_y:", batch_y.shape)
+```
+
+Expected shape pattern:
+
+```text
+batch_X: torch.Size([7, 6])
+batch_y: torch.Size([7])
+```
+
+Mechanical meaning:
+
+- Replay adds more rows to the current training batch.
+- It does not add more features.
+- `batch_X` and `batch_y` must grow together along `dim=0`.
 
 Action:
 

@@ -103,3 +103,75 @@ def train_test_split_with_regions(X, y, region_ids, train_fraction=0.8):
         y[test_idx],
         region_ids[test_idx],
     )
+
+
+def make_region_class_rules(num_regions, num_features, num_classes):
+    # Create one hidden class-weight matrix per region.
+    # Shape: [regions, features, classes]
+    true_W = torch.randn(num_regions, num_features, num_classes)
+
+    # Create one hidden class-bias vector per region.
+    # Shape: [regions, classes]
+    true_b = torch.randn(num_regions, num_classes)
+
+    # These are answer-key parameters used to generate labels, not trained parameters.
+    return true_W, true_b
+
+# Shape contract:
+    # true_W:     [regions, features, classes]
+    # true_b:     [regions, classes]
+    # X:          [examples, features]
+    # y:          [examples]
+    # region_ids: [examples]
+    # logits:     [examples, classes]
+def make_sparse_classification_data(
+        num_examples,
+        region_table,
+        true_W,
+        true_b,
+        mixture,
+        feature_noise=0.3,
+):
+    # region_table shape is [regions, features].
+    # Unpack those dimensions so the rest of the function stays shape-driven.
+    num_regions, num_features = region_table.shape
+
+    # Sample one true region ID per example (num_examples) using the mixture probabilities.
+    # replacement=True means the same region can be chosen again and again. Each draw is independent.
+    # Shape: [num_examples]
+    region_ids = torch.multinomial(mixture, num_examples, replacement=True)
+
+
+    # Build input rows near their assigned region prototype.
+    # region_table[region_ids] shape: [num_examples, features]
+    # noise shape: [num_examples, features]
+    # X shape: [num_examples, features]
+    X = region_table[region_ids] + torch.randn(num_examples, num_features) * feature_noise
+
+    # Allocate the hidden logits table that will become class labels.
+    # true_W.shape[2] is num_classes.
+    # logits shape: [num_examples, classes]
+    logits = torch.zeros(num_examples, true_W.shape[2])
+
+
+    # Fill logits region by region so each example uses its own region's hidden rule.
+    for r in range(num_regions):
+        # mask shape: [num_examples]
+        # True entries mark examples whose hidden region is r.
+        mask = region_ids == r
+
+        # Skip empty regions so X[mask] never becomes an empty training block here.
+        if mask.any():
+
+            # X[mask] shape: [examples_for_r, features]
+            # true_W[r] shape: [features, classes]
+            # true_b[r] shape: [classes]
+            # logits[mask] shape: [examples_for_r, classes]
+            logits[mask] = X[mask] @ true_W[r] + true_b[r]
+
+    # Convert hidden class scores into integer class IDs.
+    # y shape: [num_examples]
+    y = logits.argmax(dim=1)
+
+    # Return inputs, class labels, and true synthetic region IDs.
+    return X, y, region_ids

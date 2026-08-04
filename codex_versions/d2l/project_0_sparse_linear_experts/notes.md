@@ -302,10 +302,10 @@ If all models fail:
 
 ## Stopping Point
 
-Date: 2026-08-03
+Date: 2026-08-04
 
 Current phase:
-Completed through 10.7 Common Confusion Points.
+Completed through 15.6 File Edit: Classification Data In data.py.
 
 Working state:
 - venv works
@@ -315,6 +315,7 @@ Working state:
 - Phase 2 multiple-region data notes completed through 8.7
 - Phase 3 global linear model experiment completed through 9.4
 - Phase 4 similarity router completed through 10.7
+- Phase 9 classification version completed through 15.6
 - 10.6 break-it experiments done:
   - remove normalization
   - increase feature_noise from 0.3 to 2.0
@@ -322,8 +323,8 @@ Working state:
   - use k=2
 
 Next step:
-Start Phase 5: Routed Regression Experts.
-Begin with 11.2 Expert Parameter Shapes in experiments.ipynb.
+Continue Phase 9: Classification Version.
+Begin with 15.7 File Edit: Classification Model In models.py.
 
 Prompt:
 Read my notes.md and continue from the stopping point.
