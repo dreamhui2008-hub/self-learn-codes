@@ -305,7 +305,7 @@ If all models fail:
 Date: 2026-08-04
 
 Current phase:
-Completed through 15.6 File Edit: Classification Data In data.py.
+Completed through 15.7.4 Fill-Back Drill.
 
 Working state:
 - venv works
@@ -316,6 +316,13 @@ Working state:
 - Phase 3 global linear model experiment completed through 9.4
 - Phase 4 similarity router completed through 10.7
 - Phase 9 classification version completed through 15.6
+- Phase 9 classification model drills completed through 15.7.4:
+  - 15.7.1 Tiny Routed Classification Shapes
+  - 15.7.2 Boolean Mask Drill
+  - 15.7.3 One-Expert Logit Drill
+  - 15.7.4 Fill-Back Drill
+- Clarified that `torch.where(mask)[0]` returns original batch row indices, not expert IDs.
+  - Example: `route_ids_small = [0, 2, 2, 1, 3]`, `r = 2`, so the true mask positions are rows `1` and `2`.
 - 10.6 break-it experiments done:
   - remove normalization
   - increase feature_noise from 0.3 to 2.0
@@ -324,7 +331,7 @@ Working state:
 
 Next step:
 Continue Phase 9: Classification Version.
-Begin with 15.7 File Edit: Classification Model In models.py.
+Begin with 15.7.5 Full Loop Drill.
 
 Prompt:
 Read my notes.md and continue from the stopping point.
