@@ -300,12 +300,45 @@ If all models fail:
 * Weight decay changes the objective.
 * A smaller weight norm is not automatically better.
 
+# 15.7.7 Trace Checklist
+Before moving on, trace the function with these questions:
+
+1. What does one row of X represent?
+> * Within the row represents various elements of features per example. One row simply represents 1 example.
+
+2. What does one value in route_ids represent?
+> * The respective attribution to MoE. e.g. [0, 1, 2, 2, 0] means that over the 5 examples from index 0 to 4, each is attributed to regions/MoEs 0, 1, 2, 2, and 0
+
+```
+  X[mask].shape        # [num_routed_examples, features]
+  expert_W[r].shape    # [features, classes]
+  result.shape         # [num_routed_examples, classes]
+```
+
+3. What is the shape of `expert_W[r]`?
+> * `[features, classes]`
+
+4. Why does `X[mask] @ expert_W[r]` produce class logits?
+> * Because the shape of `[batch, classes]` from `X[mask] @ expert_W[r]` computes one score per class for each selected example.
+
+5. Why does `logits[mask]` have the same row count as `X[mask]`?
+> * Because both use the same boolean mask over the batch dimension. If 2 examples were routed to expert r, then `X[mask]` has 2 rows and `logits[mask]` also has 2 rows.
+
+6. Why does this function return logits instead of predicted classes?
+> * Because `CrossEntropyLoss` expects logits during training.
+> * Hard predicted classes from `argmax` are not useful for training because it is not differentiable and loses the score information.
+> * We can use `pred = logits.argmax(dim=1)` since `dim=1` is the class dimension. Each row contains 1 score/class, and `argmax` returns the class index with the highest score.
+
+7. Why are route IDs not the same thing as class labels?
+> * Route IDs choose the expert. Class labels are the target answers the model is trying to predict.
+> * Example 3 might be routed to expert 2, but its correct class could still be class 0, 1, or 2.
+
 ## Stopping Point
 
-Date: 2026-08-04
+Date: 2026-08-05
 
 Current phase:
-Completed through 15.7.4 Fill-Back Drill.
+Completed through 15.7.7 Trace Checklist.
 
 Working state:
 - venv works
@@ -316,13 +349,24 @@ Working state:
 - Phase 3 global linear model experiment completed through 9.4
 - Phase 4 similarity router completed through 10.7
 - Phase 9 classification version completed through 15.6
-- Phase 9 classification model drills completed through 15.7.4:
+- Phase 9 classification model drills completed through 15.7.7:
   - 15.7.1 Tiny Routed Classification Shapes
   - 15.7.2 Boolean Mask Drill
   - 15.7.3 One-Expert Logit Drill
   - 15.7.4 Fill-Back Drill
+  - 15.7.5 Full Loop Drill
+  - 15.7.6 Function Version Drill
+  - 15.7.7 Trace Checklist
 - Clarified that `torch.where(mask)[0]` returns original batch row indices, not expert IDs.
   - Example: `route_ids_small = [0, 2, 2, 1, 3]`, `r = 2`, so the true mask positions are rows `1` and `2`.
+- Clarified routed classification logits:
+  - `logits_small` has shape `[batch, classes]`.
+  - Each row stores class scores for one example, not probabilities.
+  - `pred_small = logits_small.argmax(dim=1)` returns the predicted class index for each example.
+  - Columns/positions correspond to class IDs; values inside logits are class scores.
+- Clarified why the routed classification function returns logits:
+  - `CrossEntropyLoss` expects logits during training.
+  - Hard predictions from `argmax` are not useful for training because `argmax` is not differentiable and loses score information.
 - 10.6 break-it experiments done:
   - remove normalization
   - increase feature_noise from 0.3 to 2.0
@@ -331,7 +375,7 @@ Working state:
 
 Next step:
 Continue Phase 9: Classification Version.
-Begin with 15.7.5 Full Loop Drill.
+Begin with the next section after 15.7.7 Trace Checklist.
 
 Prompt:
 Read my notes.md and continue from the stopping point.
