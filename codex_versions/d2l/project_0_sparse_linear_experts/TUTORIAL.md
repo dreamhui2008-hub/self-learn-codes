@@ -113,7 +113,7 @@ PyTorch's official install page currently says latest stable PyTorch requires Py
 Use this if you are working from the same Linux-style path Codex sees.
 
 ```bash
-cd /mnt/c/Users/zihui/self-learn-codes
+cd /mnt/c/Users/xyz/self-learn-codes
 mkdir -p project_0_sparse_linear_experts
 cd project_0_sparse_linear_experts
 ```
@@ -159,7 +159,7 @@ python -c "import torch; print(torch.__version__); print(torch.rand(2, 3)); prin
 Use this if you want to work from native Windows Python.
 
 ```powershell
-cd C:\Users\zihui\self-learn-codes
+cd C:\Users\xyz\self-learn-codes
 mkdir project_0_sparse_linear_experts
 cd project_0_sparse_linear_experts
 ```

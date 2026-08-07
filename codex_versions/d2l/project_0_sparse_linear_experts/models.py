@@ -65,3 +65,34 @@ def routed_predict_regression(X, expert_W, expert_b, region_table):
 
     # Return both predictions and route_ids
     return y_hat, route_ids
+
+
+# Computes one regression prediction per top-k routed expert, then averages the k predictions per example. Also returns top_ids so we can inspect routing
+def top2_routed_predict_regression(X, expert_W, expert_b, region_table):
+
+    # Ask the router for the best 2 experts per input row. top_ids shape: [batch, 2]
+    top_ids, _, _ = route_topk(X, region_table, k=2)
+
+    # Allocate 2 prediction columns/example. Column 0 stores 1st expert's prediction, column 1 stores 2nd expert's prediction. preds shape: [batch, 2]
+    preds = torch.zeros(X.shape[0], 2)
+
+    # j selects which top-k slot we are filling: 0 for best expert, 1 for second-best
+    for j in range(2):
+
+        # Pull 1 route column out of top_ids. route_ids shape: [batch]
+        route_ids = top_ids[:, j]
+
+        # For this route column, compute predictions expert by expert
+        for r in range(expert_W.shape[0]):
+
+            # mask selects examples whose j-th route is expert r
+            mask = route_ids == r
+
+            # Skip experts that no examples selected in this slot
+            if mask.any():
+
+                # X[mask] shape: [examples_for_r, features] ; expert_W[r] shape: [features]; preds[mask, j] shape: [examples_for_r]
+                preds[mask, j] = X[mask] @ expert_W[r] + expert_b[r]
+
+    # Average the 2 expert predictions for each example. preds.mean(dim=1) shape: [batch]
+    return preds.mean(dim=1), top_ids

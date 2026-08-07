@@ -366,6 +366,26 @@ You are ready to move on when you can explain:
 > * The full routed model stores one classifier expert per region. For a single region `r`, `expert_W[r]` has shape `[features, classes]`, mapping input features to class logits.
 > * Stacking all region experts together gives `[regions, features, classes]`.
 
+# 16.4.4 File Edit: Full Function Trace checklist for `top2_routed_predict_regression()`
+
+1. Why does `top_ids` have 2 columns?
+> top_ids have the shape of (batch, k) for k = top selection. For (5, 2), for example, each example (over 5 total) will receive 2 route_ids for MoE inference (prediction)
+
+2. Why is `top_ids[:, j]` a normal route_ids vector?
+> `top_ids` has shape `[batch, 2]`. Selecting 1 column with `top_ids[:, j]` gives shape `[batch]`, or 1 expert ID per example, akin to a normal top-1 `route_ids`.
+
+3. What does `preds[i, 0]` store?
+> The regression prediction for example `i` made by its 1st choice expert. The expert ID itself is stored in `top_ids[i, 0]`.
+
+4. What does `preds[i, 1]` store?
+> The regression prediction for example `i` made by its 2nd choice expert. The expert ID itself is stored in `top_ids[i, 0]`.
+
+5. Why does `preds.mean(dim=1)` return shape `[batch]`?
+> Because predictions/inferences are now averaged together to 1 answer per example, so shape = `[batch]` or # of examples
+
+6. Why does this function return top_ids as well as predictions?
+> The averaged predictions are used for loss/accuracy, while `top_ids` lets us inspect which experts were selected for each example.
+> This is useful for debugging routing, measuring region usage, or comparing top-1 vs top-2 routing.
 
 ## Stopping Point
 
