@@ -13,3 +13,7 @@ def per_region_mse(y_hat, y, region_ids, num_regions):
             values.append(None)
 
     return values
+
+def accuracy(logits, y):
+    predictions = logits.argmax(dim=1)
+    return (predictions == y).float().mean()

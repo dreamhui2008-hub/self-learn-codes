@@ -333,6 +333,40 @@ Before moving on, trace the function with these questions:
 > * Route IDs choose the expert. Class labels are the target answers the model is trying to predict.
 > * Example 3 might be routed to expert 2, but its correct class could still be class 0, 1, or 2.
 
+Common failure modes:
+
+* using class labels as `route_ids` (these are for MoEs whereas class labels are the target classes for `CrossEntropyLoss`)
+* returning `argmax` predictions instead of logits (`argmax` is for evaluation/inference after the model produces logits)
+* applying softmax inside the helper (`CrossEntropyLoss` expects raw logits and applies the log-softmax part internally)
+* forgetting `if mask.any()` (helps to skip experts with no routed examples safely, especially if computing per-expert loss)
+* making `expert_W` shape `[regions, classes, features]` (**WRONG**) instead of `[regions, features, classes]` (**CORRECT**)
+
+# 15.11 Checkpoint
+
+You are ready to move on when you can explain:
+
+* why classification labels have shape `[batch]`
+> * Each example has one correct class ID. So `y[i]` is the target class for `X[i]`, and `y` has one value per example.
+
+* why logits have shape `[batch, classes]`
+> * Each example needs one raw score per possible class. So if there are 500 examples and 3 classes, logits have shape `[500, 3]`.
+
+* why `F.cross_entropy(logits, y)` receives raw logits
+> * Because PyTorch cross_entropy already includes softmax calculation.
+> * If hand-written (which this example is however it mimics PyTorch), you are welcomed to outsource softmax separately outside of cross_entropy
+
+* why `argmax(dim=1)` converts logits into predicted class IDs
+> * Because argmax picks the largest element inside the dimension, so dimension=classes has 80% cat and 20% dog, argmax will retain the label of cat
+
+* how routed classification differs from routed regression
+> * Classification tends to work with metadata (e.g. text) while regression works with numbers. A good example is cat vs dogs and housing prices predictions
+> * Routed regression returns one number per example, usually shape `[batch]`. Routed classification returns one vector of class scores per example, shape `[batch, classes]`.
+
+* why classification `expert_W` has shape `[regions, features, classes]`
+> * The full routed model stores one classifier expert per region. For a single region `r`, `expert_W[r]` has shape `[features, classes]`, mapping input features to class logits.
+> * Stacking all region experts together gives `[regions, features, classes]`.
+
+
 ## Stopping Point
 
 Date: 2026-08-05
