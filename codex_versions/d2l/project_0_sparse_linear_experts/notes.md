@@ -387,12 +387,56 @@ You are ready to move on when you can explain:
 > The averaged predictions are used for loss/accuracy, while `top_ids` lets us inspect which experts were selected for each example.
 > This is useful for debugging routing, measuring region usage, or comparing top-1 vs top-2 routing.
 
+# 16.6 Checkpoint
+
+You are ready to move on when you can explain:
+* why top_ids has shape `[batch, 2]`
+> Because each example requires 2 experts where k=2 for top-k MoE routing
+
+* why `top_ids[:, 0]` and `top_ids[:, 1]` each have shape `[batch]`
+> Because you are selecting 1 column of top_ids, out of the 2 available experts to choose from
+
+* why top-2 router accuracy can improve while prediction loss gets worse
+> Because router accuracy only calculates when EITHER expert is correct, while prediction is averaged from BOTH experts
+> So if the second expert performs terribly, it doesn't count into router accuracy, but it will be factored into prediction loss
+
+* why "more active experts" is not automatically better
+> Per above, if the 2nd expert is terrible it could significantly degrade the inference quality, which is an average 
+
+# 17.5 Checkpoint
+
+You are ready to move on when you can explain:
+
+* why this gate is batch-level rather than per-example
+> This gate is batch-level because `routed_regression_loss(...)` returns one average loss over the routed training batch.
+> The threshold compares against that 1 scalar, so the optimizer step is either allowed or skipped for the whole batch.
+> A per-example gate would require individual example losses and a different update rule
+
+* why skipped epochs do not update parameters
+> Because skipped epochs have acceptable (lower) loss comparing to the threshold
+> From a mechanical standpoint, skipped epochs do not call `loss.backward()` or `sgd(...)` -> no backward pass -> no gradient update -> no sgd -> `expert_W` and `expert_b` UNCH
+
+* why a low threshold behaves like ordinary training
+> A low threshold behaves like ordinary training because the batch loss is usually greater than the threshold, so the update branch runs on most or all epochs
+> That makes it close to threshold=None, where every epoch updates
+
+* why a high threshold can cause underfitting
+> Because many epochs are skipped -> fewer optimizer updates -> expert weights and biases may not adapt enough to the training data
+
+* why this is only a toy analog of local gated learning
+> Because the gate is a simple hand-written threshold on global batch loss.
+> Real local gated learning would use more local signals, such as per-expert/example/synapse activity, possibly with separate eligibility or reward signals
+> Here one scalar loss controls whether the whole model updates, so it is useful mechanically but not a realistic local learning rule
+
 ## Stopping Point
 
-Date: 2026-08-05
+Date: 2026-08-07
 
 Current phase:
-Completed through 15.7.7 Trace Checklist.
+Currently completed Phase 11: Local Update Gate through 17.5 Checkpoint.
+17.4 Local Update Gate Experiment has been written in `experiments.ipynb`.
+17.5 checkpoint answers have been written in `notes.md`.
+The next phase starts at 18.1 Optional Homeostatic Scaling.
 
 Working state:
 - venv works
@@ -403,7 +447,7 @@ Working state:
 - Phase 3 global linear model experiment completed through 9.4
 - Phase 4 similarity router completed through 10.7
 - Phase 9 classification version completed through 15.6
-- Phase 9 classification model drills completed through 15.7.7:
+- Phase 9 classification model drills completed through 15.11:
   - 15.7.1 Tiny Routed Classification Shapes
   - 15.7.2 Boolean Mask Drill
   - 15.7.3 One-Expert Logit Drill
@@ -411,6 +455,48 @@ Working state:
   - 15.7.5 Full Loop Drill
   - 15.7.6 Function Version Drill
   - 15.7.7 Trace Checklist
+- Phase 10 top-2 routing completed through 16.4.4:
+  - top-k route shape drills
+  - `top_ids[:, 0]` as first-choice route IDs
+  - `top_ids[:, 1]` as second-choice route IDs
+  - `preds[:, 0]` as first-choice expert predictions
+  - `preds[:, 1]` as second-choice expert predictions
+  - `preds.mean(dim=1)` as the averaged top-2 prediction
+  - 16.4.4 trace checklist written
+- 16.5 completed:
+  - training still uses top-1 similarity routing
+  - evaluation compares top-1 prediction vs top-2 averaged prediction
+  - use tutorial variable names `train_top2_ids` and `test_top2_ids`
+  - `train_top2_ids` has shape `[train_examples, 2]`
+  - `test_top2_ids` has shape `[test_examples, 2]`
+  - `top2_usage = torch.bincount(train_top2_ids.reshape(-1), minlength=num_regions).tolist()`
+  - `top2_router_acc = (test_top2_ids == test_region_ids[:, None]).any(dim=1).float().mean()`
+  - verified `models.py` exposes `top2_routed_predict_regression`
+  - experiment output from the venv run:
+    - `top-1 similarity`: train loss `0.733542263507843`, test loss `0.735161304473877`, router accuracy `0.9399999976158142`, usage `[108, 89, 105, 98]`
+    - `top-2 similarity average`: train loss `0.8284111022949219`, test loss `0.8642458915710449`, router accuracy `0.9900000095367432`, usage `[282, 271, 139, 108]`
+  - interpretation written in `experiments.ipynb`: top-2 router accuracy improved, but prediction loss worsened because averaging with a second expert can pull predictions away from the target.
+- 16.6 checkpoint annotations completed in `experiments.ipynb`:
+  - `top_ids` has shape `[batch, 2]`
+  - `top_ids[:, 0]` and `top_ids[:, 1]` each have shape `[batch]`
+  - top-2 router accuracy can improve while prediction loss gets worse
+  - more active experts is not automatically better
+- Phase 11 local update gate completed through 17.5:
+  - 17.4.1 gated helper grammar drill completed
+  - 17.4.2 threshold condition table completed
+  - 17.4 Local Update Gate Experiment completed in `experiments.ipynb`
+  - `run_gated_similarity_regression(threshold)` trains one fresh similarity-routed model per threshold
+  - thresholds compared: `[None, 0.2, 0.5, 1.0]`
+  - `threshold=None` means ordinary training: always update
+  - numeric thresholds update only when `loss.item() > threshold`
+  - `update_count` counts optimizer steps, not loop iterations
+  - evaluation records train/test prediction loss, test router accuracy, and test per-region loss
+  - 17.5 checkpoint answers written:
+    - the gate is batch-level because `routed_regression_loss(...)` returns one scalar batch loss
+    - skipped epochs do not call `loss.backward()` or `sgd(...)`, so parameters do not update
+    - low thresholds behave like ordinary training because most epochs still update
+    - high thresholds can underfit by skipping too many optimizer updates
+    - this is a toy analog because one global batch-loss threshold controls the whole model update
 - Clarified that `torch.where(mask)[0]` returns original batch row indices, not expert IDs.
   - Example: `route_ids_small = [0, 2, 2, 1, 3]`, `r = 2`, so the true mask positions are rows `1` and `2`.
 - Clarified routed classification logits:
@@ -428,8 +514,8 @@ Working state:
   - use k=2
 
 Next step:
-Continue Phase 9: Classification Version.
-Begin with the next section after 15.7.7 Trace Checklist.
+Start Phase 12: Optional Homeostatic Scaling.
+Resume at 18.1 Goal in `TUTORIAL.md`.
 
 Prompt:
 Read my notes.md and continue from the stopping point.
