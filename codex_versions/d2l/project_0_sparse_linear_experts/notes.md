@@ -1,6 +1,9 @@
 ## Annotations for functions
 
-* torch.randperm(n): Creates a random permutation/rearrangement of the integers from 0 to n-1; e.g. [0, 3, 1, 2, 4] for n=5
+* `torch.randperm(n)`: Creates a random permutation/rearrangement of the integers from 0 to n-1; e.g. [0, 3, 1, 2, 4] for n=5
+* `W_small.norm(dim=1, keepdim=True)`: Computes the L2 length of each row in W_small by reducing across columns/features;
+> * `keepdim=True` keeps the result shaped like `[rows, 1]` instead of `[rows]`, so it can broadcast back across each row.
+
 
 ## 7.9 Break It Deliberately
 
@@ -428,15 +431,43 @@ You are ready to move on when you can explain:
 > Real local gated learning would use more local signals, such as per-expert/example/synapse activity, possibly with separate eligibility or reward signals
 > Here one scalar loss controls whether the whole model updates, so it is useful mechanically but not a realistic local learning rule
 
+# 18.6 Checkpoint
+
+You are ready to move on when you can explain:
+
+* why `expert_W.norm(dim=1)` gives one norm per expert
+> Because `expert_W` has shape `[regions, features]`, where each row is one expert's weight vector
+> `dim=1` reduces across the feature columns, so the result has 1 L2 norm per expert row
+
+* why `keepdim=True` matters for broadcasting
+> `keepdim=True` keeps the norms shaped like `[regions, 1]` instead of `[regions]`
+> That lets each expert's single scale value broadcast across that expert's feature columns when multiplying `expert_W * scale`
+
+* why homeostatic scaling is not the same as weight decay
+> Weight decay is added to the loss, so it changes the gradients during `loss.backward()`
+> Homeostatic scaling happens after the optimizer step and directly rescales `expert_W` outside the loss. It makes each expert row move toward a target norm, not each individual weight value
+
+* why smaller weight norm is not automatically better
+> Smaller norms can reduce overfitting or instability, but if the weights become too small, the model may underfit
+> Some data-generating rules require larger weight magnitudes, so forcing weights too small can hurt train and test loss
+> Fraud detection
+  - Large weight: “new device + foreign IP + unusual purchase size”
+  - Smaller weight: “purchase made on weekend”
+  - Reason: some signals sharply change fraud probability; others are weak context.
+> Large weights: strong, reliable, high-sensitivity signals.
+> Small weights: weak, noisy, redundant, or low-impact signals.
+> Too-small weights: underfitting.
+> Too-large weights: overfitting or instability.
+
 ## Stopping Point
 
-Date: 2026-08-07
+Date: 2026-08-08
 
 Current phase:
-Currently completed Phase 11: Local Update Gate through 17.5 Checkpoint.
-17.4 Local Update Gate Experiment has been written in `experiments.ipynb`.
-17.5 checkpoint answers have been written in `notes.md`.
-The next phase starts at 18.1 Optional Homeostatic Scaling.
+Currently completed Phase 12: Optional Homeostatic Scaling through 18.6 Checkpoint.
+18.5 Weight Decay vs Homeostatic Scaling Experiment has been written in `experiments.ipynb`.
+18.6 checkpoint answers have been written in `notes.md`.
+The next phase starts at 19.1 Optional Replay Buffer.
 
 Working state:
 - venv works
@@ -497,6 +528,18 @@ Working state:
     - low thresholds behave like ordinary training because most epochs still update
     - high thresholds can underfit by skipping too many optimizer updates
     - this is a toy analog because one global batch-loss threshold controls the whole model update
+- Phase 12 optional homeostatic scaling completed through 18.6:
+  - 18.3 norms/rescaling drill completed
+  - 18.4 in-place rescale grammar drill completed
+  - `rescale_expert_weights(expert_W, target_norm=1.0)` added to `train.py`
+  - 18.5 Weight Decay vs Homeostatic Scaling Experiment completed in `experiments.ipynb`
+  - compared `none`, `weight decay`, `homeostatic scaling`, and `weight decay + scaling`
+  - evaluation records train/test prediction loss, whole-`expert_W` norm, and per-expert row norms
+  - 18.6 checkpoint answers written:
+    - `expert_W.norm(dim=1)` gives one norm per expert because it reduces across feature columns for each expert row
+    - `keepdim=True` keeps norms shaped `[regions, 1]` so scale values broadcast across feature columns
+    - homeostatic scaling happens outside the loss and directly rescales `expert_W`; weight decay changes the loss and gradients
+    - smaller weight norm is not automatically better because too-small weights can underfit or fail to match high-sensitivity data rules
 - Clarified that `torch.where(mask)[0]` returns original batch row indices, not expert IDs.
   - Example: `route_ids_small = [0, 2, 2, 1, 3]`, `r = 2`, so the true mask positions are rows `1` and `2`.
 - Clarified routed classification logits:
@@ -514,8 +557,8 @@ Working state:
   - use k=2
 
 Next step:
-Start Phase 12: Optional Homeostatic Scaling.
-Resume at 18.1 Goal in `TUTORIAL.md`.
+Start Phase 13: Optional Replay Buffer.
+Resume at 19.1 Goal in `TUTORIAL.md`.
 
 Prompt:
 Read my notes.md and continue from the stopping point.
