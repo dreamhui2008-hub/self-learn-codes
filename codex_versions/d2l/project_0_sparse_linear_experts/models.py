@@ -96,3 +96,17 @@ def top2_routed_predict_regression(X, expert_W, expert_b, region_table):
 
     # Average the 2 expert predictions for each example. preds.mean(dim=1) shape: [batch]
     return preds.mean(dim=1), top_ids
+
+# Create routed classification logits from input features and expert parameters
+def routed_classification_logits(X, expert_W, expert_b, route_ids):
+    num_examples = X.shape[0]
+    num_classes = expert_b.shape[1]
+    logits = torch.zeros(num_examples, num_classes)
+
+    # For each expert r, find rows routed to r, compute class scores for those rows, write those scores back into the matching rows of logits
+    for r in range(expert_W.shape[0]):
+        mask = route_ids == r
+        if mask.any():
+            logits[mask] = X[mask] @ expert_W[r] + expert_b[r]
+
+    return logits

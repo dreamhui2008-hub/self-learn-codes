@@ -1,9 +1,15 @@
 ## Annotations for functions
 
 * `torch.randperm(n)`: Creates a random permutation/rearrangement of the integers from 0 to n-1; e.g. [0, 3, 1, 2, 4] for n=5
-* `W_small.norm(dim=1, keepdim=True)`: Computes the L2 length of each row in W_small by reducing across columns/features;
-> * `keepdim=True` keeps the result shaped like `[rows, 1]` instead of `[rows]`, so it can broadcast back across each row.
 
+* `W_small.norm(dim=1, keepdim=True)`: Computes the L2 length of each row in W_small by reducing across columns/features;
+> * `keepdim=True` keeps the result shaped like `[rows, 1]` instead of `[rows]`, so it can broadcast back across each row
+
+* `torch.cat(..., dim=0)`: Concatenates tensors along dimension 0. The sizes along `dim=0` are added together, while all other dimensions must match exactly.
+> * `dim=0` is the default if `dim` argument is not specified
+> * For `torch.cat` to work, all dimensions except the chosen `dim` must match. If any non-concatenated dimension differs, PyTorch raises an error
+
+* `X_demo[i].detach()` returns a tensor with the same values as `X_demo[i]`, but without its existing computation/edit history attached. This prevents stored tensors from keeping unnecessary history in memory.
 
 ## 7.9 Break It Deliberately
 
@@ -459,15 +465,101 @@ You are ready to move on when you can explain:
 > Too-small weights: underfitting.
 > Too-large weights: overfitting or instability.
 
+# 19.7 Checkpoint
+
+You are ready to move on when you can explain:
+
+* why replay uses `torch.cat(..., dim=0)`
+> Because you need to append the older examples into the new ones to create the training batch, so `torch.cat` creates 1 larger training batch without changing the # of features
+
+* why replay can help old-region performance
+> Because old examples keep appearing during later training. Without replay, stage 2 mostly optimizes for the new distribution, so old-heavy regions get little or no training signal
+> Replay gives old regions more examples in the loss, which can reduce forgetting or keep old experts better calibrated
+> The broader issue is that the later training objective is dominated by the new distribution, so old-region performance may stop improving, drift, or become underrepresented
+
+* why replay can sometimes hurt new-region performance
+> If old and new examples push parameters in different directions, or if model capacity/training time is limited, preserving old performance can slightly trade off against new performance
+
+* why replay and sparse routing solve different problems
+> Sparse routing decides which expert handles each example, helping experts specialize locally.
+> Replay decides what examples are included during training, helping older data remain represented after the training distribution shifts.
+
+# 21.1 Regression Metrics
+
+Use these for regression:
+
+* train MSE
+* test MSE
+* per-region MSE
+* weight norm
+* router accuracy
+* region usage count
+* number of parameter updates
+
+# 21.2 Classification Metrics
+
+Use these for classification:
+
+* train accuracy
+* test accuracy
+* train cross-entropy
+* test cross-entropy
+* per-region accuracy
+* confusion matrix
+* router accuracy
+* region usage count
+
+# 25. Final Writeup Prompts
+
+At the end, write a short technical note answering:
+
+* What did the global regression model learn?
+> It learned one single linear rule, one `w` and one `b`, to predict numeric targets from input features.
+> On multi-region data, this global rule had to average across different region-specific rules, so it could underfit.
+
+* What did the global classification model learn?
+> It learned one global classifier that maps input features to class logits. The logits are raw class scores; `argmax` turns them into predicted class IDs.
+
+* When did routed experts outperform the global model?
+> When there is a big variety in the data (e.g. types of data are not just cats or dogs but billions of species), or different types of hidden rules that would be difficult for a single model to handle
+> In that case, each expert could specialize instead of one global model averaging all regions together
+
+* When did routed experts fail?
+> They failed or helped less when routing was bad, when experts received too little data, when regions were not actually different enough, or when the task was simple enough for one global model.
+
+* How much did router quality matter?
+> Matters massively. Oracle routing (router knows the answer) was the upper bound, random routing was weak, and similarity routing worked well when input geometry matched the true regions (same tensor direction).
+
+* What did distribution shift do?
+> Distribution shift changed which regions appeared often during training or testing. For example, old data mostly used regions 0 and 1, while new data mostly used regions 2 and 3.
+> This can make the model perform well on the new distribution while forgetting or undertraining the old one.
+
+* Which parameters received gradients during sparse training?
+> Only the experts selected by `route_ids` received gradients from their routed examples
+> For expert `r`, `expert_W[r]` and `expert_b[r]` update only if at least one example is routed to expert `r`
+
+* What did weight decay change?
+> Weight decay added a penalty for large weights, pushing weights toward smaller norms. This can reduce overfitting or instability, but it can hurt if the task needs larger weights/stronger signals
+
+* What did per-region metrics reveal that average metrics hid?
+> Per-region metrics showed whether some regions performed much better or worse than others. A good average loss can hide one rare region failing badly.
+
+* Which part connects most clearly to D2L Chapters 2-4?
+> Tensor shapes, linear models, MSELoss, softmax -> CrossEntropy, sgd, backward() or chain-rules
+
+* Which part feels like a real research question rather than a solved exercise?
+> Whether Replay Buffer (mixing older examples in newer training set) meaningfully improves model performance (older experts receive updates alongside newer experts)?
+> How to choose routing, replay, local update gates, and expert regularization so the model learns new distributions without forgetting old ones.
+
 ## Stopping Point
 
 Date: 2026-08-08
 
 Current phase:
-Currently completed Phase 12: Optional Homeostatic Scaling through 18.6 Checkpoint.
-18.5 Weight Decay vs Homeostatic Scaling Experiment has been written in `experiments.ipynb`.
-18.6 checkpoint answers have been written in `notes.md`.
-The next phase starts at 19.1 Optional Replay Buffer.
+Project 0 has been completed through Chapter 25: Final Writeup Prompts.
+The main tutorial phases are complete through Phase 13: Optional Replay Buffer.
+Chapter 21 metrics notes have been reviewed, including how to read a confusion matrix.
+Chapter 25 final writeup answers have been written in `notes.md`.
 
 Working state:
 - venv works
@@ -540,6 +632,54 @@ Working state:
     - `keepdim=True` keeps norms shaped `[regions, 1]` so scale values broadcast across feature columns
     - homeostatic scaling happens outside the loss and directly rescales `expert_W`; weight decay changes the loss and gradients
     - smaller weight norm is not automatically better because too-small weights can underfit or fail to match high-sensitivity data rules
+- Phase 13 optional replay buffer completed through 19.7:
+  - 19.3 `torch.cat(..., dim=0)` reviewed:
+    - concatenates along the batch/example dimension
+    - selected dimension sizes are added
+    - all other dimensions must match exactly
+  - 19.4 `ReplayBuffer` implemented in `train.py`:
+    - stores detached cloned examples in `self.X` and `self.y`
+    - keeps only the most recent `max_size` examples with `self.X[-self.max_size:]`
+    - samples random stored examples using `torch.randint`
+    - stacks sampled examples back into batch tensors with `torch.stack`
+  - 19.5 replay add/sample drills completed:
+    - `detach()` cuts tensor history without changing values
+    - `clone()` makes an independent copy
+    - `torch.stack([...])` turns separate stored examples into a batch
+  - 19.6 curriculum replay experiment completed:
+    - old mixture: `[0.45, 0.45, 0.05, 0.05]`
+    - new mixture: `[0.05, 0.05, 0.45, 0.45]`
+    - first trained on old distribution, then trained on new distribution with or without replay
+    - replay branch used `torch.cat([new_X_train, replay_X], dim=0)` and matching `batch_y`
+    - after resetting seed inside `run_curriculum`, observed:
+      - no replay: old test loss `0.39968687295913696`, new test loss `0.5190250277519226`
+      - replay: old test loss `0.3869458734989166`, new test loss `0.5516014695167542`
+    - interpretation: replay slightly improved old-distribution performance and slightly worsened new-distribution performance, so the effect was real but modest in this toy setup
+  - 19.7 checkpoint answers written:
+    - replay uses `torch.cat(..., dim=0)` to append old examples as more batch rows
+    - replay can help old-region performance by keeping old examples represented during later training
+    - replay can hurt new-region performance when old examples compete with new examples under limited capacity or training time
+    - sparse routing chooses which expert handles each example, while replay chooses which examples remain represented during training
+- Chapter 21 metrics reviewed:
+  - regression metrics: train/test MSE, per-region MSE, weight norm, router accuracy, region usage count, parameter update count
+  - classification metrics: train/test accuracy, train/test cross-entropy, per-region accuracy, confusion matrix, router accuracy, region usage count
+  - confusion matrix interpretation clarified:
+    - rows are true labels
+    - columns are predicted labels
+    - `matrix[true_class, predicted_class]` is the occurrence count for that true/predicted pair
+    - diagonal entries are correct predictions; off-diagonal entries are mistakes
+- Chapter 25 final writeup answers completed:
+  - global regression learns one linear rule and can underfit multi-region data
+  - global classification learns one global logits-producing classifier
+  - routed experts help when regions have different hidden rules and routing is good
+  - routed experts fail or help less when routing is bad, data per expert is low, regions are not meaningfully different, or the global model is sufficient
+  - router quality matters strongly: oracle routing is the upper bound, random routing is weak, similarity routing works when geometry matches regions
+  - distribution shift changes which regions dominate training/testing and can cause forgetting or undertraining
+  - only selected experts receive gradients during sparse training
+  - weight decay pushes weights toward smaller norms but can hurt if strong weights are needed
+  - per-region metrics reveal failures hidden by average metrics
+  - D2L connections include tensor shapes, linear models, MSE, softmax, cross-entropy, `backward()`, and SGD
+  - replay/routing/local gates/regularization under distribution shift feel like the real research questions
 - Clarified that `torch.where(mask)[0]` returns original batch row indices, not expert IDs.
   - Example: `route_ids_small = [0, 2, 2, 1, 3]`, `r = 2`, so the true mask positions are rows `1` and `2`.
 - Clarified routed classification logits:
@@ -557,8 +697,42 @@ Working state:
   - use k=2
 
 Next step:
-Start Phase 13: Optional Replay Buffer.
-Resume at 19.1 Goal in `TUTORIAL.md`.
+Project 0 is ready to close off.
+If continuing later, use Chapter 27 Final Done Criteria in `TUTORIAL.md` only as a final checklist.
+Optional cleanup: verify whether `confusion_matrix` was added to `metrics.py` if full optional completion is desired.
 
 Prompt:
-Read my notes.md and continue from the stopping point.
+Read my notes.md and continue only if doing final cleanup/checklist work after Chapter 25.
+
+# Key Takeaways
+  You built the right foundation: tensor shapes, scalar losses, manual backward(), gradient clearing,
+  SGD, train/test separation, and reading outputs mechanically instead of just asking whether a number
+  “went down.”
+
+  The strongest technical learning was sparse routing. You learned that route_ids choose experts,
+
+  You also learned that regularization is contextual. Weight decay and homeostatic scaling reduced
+  norms and helped in some runs, but the real lesson is not “smaller weights are better.” It is:
+  weight size, generalization, underfitting, and task signal strength interact.
+  loss, 0.3997 -> 0.3869, while slightly worsening new-distribution loss, 0.5190 -> 0.5516. That is a
+  good toy example of stability/plasticity tradeoff.
+
+  Progress
+  My read of your progress: you moved from “what does this PyTorch function do?” to “what variable is
+  allowed to differ, what dimension is being reduced, what parameter receives gradients, and is this
+  comparison controlled?” That is a meaningful shift.
+
+  The best habit you showed was not letting terms stay fuzzy. You drilled into cat, stack, detach,
+  slicing, logits, argmax, masks, and confusion matrices until they became mechanical. That is exactly
+  the kind of foundation future projects need.
+
+# Bedrocks For Future Projects
+Carry these forward:
+
+- Always write shape contracts.
+- Always keep global/random/oracle-style baselines when possible.
+- Treat average metrics with suspicion; inspect per-region/per-class behavior.
+- Separate routing quality from model quality.
+- Separate training performance from generalization.
+- Make experiments controlled when comparing conditions: same seed, same init, same data split.
+- Keep notebooks clean-restartable.
