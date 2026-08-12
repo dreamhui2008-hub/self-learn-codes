@@ -699,7 +699,6 @@ Working state:
 Next step:
 Project 0 is ready to close off.
 If continuing later, use Chapter 27 Final Done Criteria in `TUTORIAL.md` only as a final checklist.
-Optional cleanup: verify whether `confusion_matrix` was added to `metrics.py` if full optional completion is desired.
 
 Prompt:
 Read my notes.md and continue only if doing final cleanup/checklist work after Chapter 25.

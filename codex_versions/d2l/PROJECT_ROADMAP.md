@@ -1,6 +1,6 @@
 # D2L Project Roadmap
 
-Last updated: 2026-07-20
+Last updated: 2026-08-09
 
 ## Purpose
 
@@ -497,22 +497,39 @@ Later:
 
 ## Current Next Step
 
-The Project 0 tutorial now lives at:
+Project 0 is complete.
 
-```text
-Project 0 - Sparse Linear Experts Under Distribution Shift/TUTORIAL.md
-```
+Do not spend more active time on Chapter 27. The final done criteria have already been satisfied by the completed notes, notebook runs, metrics work, and final writeup.
 
-Work through it before continuing to D2L Chapters 5-7. It defines:
+The next main step is to return to D2L and work through Chapters 5-7:
 
-- exact dataset design
-- exact expert/region design
-- exact routing function
-- exact training stages
-- exact experiments
-- exact metrics
-- expected bugs and debugging checks
-- a hand-typing-friendly tutorial sequence
+- Chapter 5: multilayer perceptrons, nonlinear activations, initialization, dropout, and generalization
+- Chapter 6: modules, parameters, custom layers, initialization, file I/O, and devices
+- Chapter 7: convolution, padding, stride, channels, pooling, and LeNet
+
+Current action order:
+
+1. Start D2L Chapter 5.
+2. Keep notes mechanically explicit: shapes, parameters, loss, gradients, train/test behavior, and what each new API changes.
+3. After Chapter 5, continue directly into Chapter 6 so models become reusable `nn.Module` objects instead of notebook-local parameter tensors.
+4. After Chapter 6, continue into Chapter 7 to build convolution mechanics.
+5. After Chapter 7, start Project 1: CNN Image Classifier + Custom Optimizer.
+
+Key takeaways to carry forward:
+
+- tensor shapes, scalar losses, manual `backward()`, gradient clearing, SGD, and train/test separation are now bedrock mechanics
+- sparse routing must be read mechanically: `route_ids` choose experts, labels are prediction targets, and routing quality is separate from model quality
+- regularization is contextual; smaller norms are not automatically better
+- replay showed a small stability/plasticity tradeoff in the toy shift experiment: better old-distribution loss, slightly worse new-distribution loss
+- controlled comparisons matter: same seed, same initialization, same data split, and clear baselines
+
+Bedrocks for future projects:
+
+- always write shape contracts
+- keep global, random, and oracle-style baselines when possible
+- inspect per-region or per-class behavior instead of trusting only average metrics
+- separate training performance from generalization
+- keep notebooks clean-restartable
 
 ## Appendix: Reviewed Resource Dump
 
