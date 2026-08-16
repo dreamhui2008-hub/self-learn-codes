@@ -23,11 +23,17 @@ Each chapter must be structured as:
 - Code blocks only (no real notebook JSON)
 - No execution outputs unless explicitly shown
 
-Within each chapter, concepts must be introduced in order:
-- Raw intuition
-- Manual Python implementation
-- NumPy version (if relevant)
-- Framework version (PyTorch/D2L only at the end)
+Within each chapter, concepts must still move from intuition to mechanics to framework behavior, but the active style from Chapter 6 onward is no longer the early ultra-small example format.
+
+Active Chapter 6+ style:
+- use D2L as the conceptual spine
+- make the chapter more mechanically and theoretically demanding than D2L when useful
+- compensate for that difficulty with more drills, shape checks, failure demos, and explicit walkthroughs
+- keep examples self-contained, cloud-runnable, and inspectable
+- use production-shaped PyTorch objects when they are the actual subject of the chapter
+- scale data/model/runtime down when needed, but do not water down the target mechanics
+
+The older strict micro-example style from Chapters 2-5 is now legacy/archive guidance. It remains useful for brand-new syntax and first-contact explanations, but it is not the default ceiling for future chapters.
 
 ---
 
@@ -88,7 +94,7 @@ Never assume the learner understands:
 Every such feature must include:
 - what it literally does in Python
 - why it is used here
-- a minimal toy example
+- a minimal inspectable drill
 
 ---
 
@@ -99,8 +105,8 @@ Each concept must be introduced in 3 layers:
 #### Layer A: Intuition (no code)
 Explain what is happening in real-world terms.
 
-#### Layer B: Minimal Python implementation
-Show simplest possible code (no frameworks).
+#### Layer B: Mechanical implementation
+Show a small, inspectable implementation. For early mathematical concepts this may be plain Python or NumPy. For Chapter 6+ topics where the framework object is the concept itself, PyTorch-first drills are acceptable as long as hidden Python and framework behavior is explained before it is relied on.
 
 #### Layer C: Framework mapping
 Only now connect to PyTorch / D2L abstractions.
@@ -114,9 +120,7 @@ You MUST NOT jump directly from:
 - D2L module
 - Trainer / Module / fit loop
 
-Framework code is ONLY allowed after:
-- manual implementation exists
-- execution flow is explicitly explained
+Framework code is allowed only after the learner has enough mechanical footing to read it. That footing can come from a manual implementation, a tiny PyTorch drill, an explicit shape trace, a line-by-line control-flow explanation, or a captured failure case.
 
 ---
 
@@ -130,12 +134,24 @@ For all loops and training logic, explicitly state:
 - what is stored in memory
 ---
 
-### 6. USE MICRO-EXAMPLES
+### 6. USE DRILLS, CONTRACTS, AND INTEGRATED MECHANICS CELLS
 
-Constraints:
-- Python examples 閳?10 lines
-- vector sizes 閳?5 elements
+Legacy Chapters 2-5 used a strict micro-example cap:
+- Python examples roughly <=10 lines
+- vector sizes roughly <=5 elements
 - no large architectures early
+
+That cap is archived, not the active default.
+
+For Chapter 6 and later:
+- keep first-contact drills small enough to inspect by hand
+- allow longer integrated code cells when they teach one coherent executable contract
+- prefer fewer coherent cells over many fragmented cells when fragmentation would hide the real workflow
+- every longer cell must justify itself through clear setup, explicit expected shapes or state, assertions, and a focused purpose
+- split a cell when it mixes unrelated ideas, hides too much state, or becomes hard to debug
+- use `assert` statements as executable contracts for shapes, parameters, devices, gradients, outputs, and expected failure behavior
+- include deliberate breakage demos when they teach a common real error
+- use small synthetic data and reduced model scale for runtime, but keep the mechanics serious
 
 ---
 
@@ -147,29 +163,43 @@ Instead:
 
 ---
 
-## OUTPUT FORMAT (MANDATORY)
+## OUTPUT FORMAT
 
-Each section must follow this structure:
+### Legacy Chapters 2-5 Format
 
-### TITLE
+The earlier generated chapters used the following six-part template as the dominant structure:
 
-#### 1. Intuition
-(plain English explanation)
+```text
+Title
+1. Intuition
+2. Why this exists
+3. Examples
+4. Step-by-step breakdown
+5. Connection to ML systems
+6. Common confusion points
+```
 
-#### 2. Why this exists
-(problem it solves)
+Keep this as archive guidance. It is still useful for first-contact ideas, but it should not force future chapters into weaker or over-fragmented examples.
 
-#### 3. Examples
-(code or math, or a combination of both, as exquisite as possible so that the user understands)
+### Active Chapter 6+ Format
 
-#### 4. Step-by-step breakdown
-(line-by-line explanation if code exists)
+Future chapters should follow the Chapter 6-7 notebook-native style unless the user asks otherwise.
 
-#### 5. Connection to ML systems (only if relevant)
-(e.g., how it appears in PyTorch or D2L)
+Each subchapter notebook should usually include:
 
-#### 6. Common confusion points
-(what usually breaks understanding)
+- top-level chapter title
+- "How to use this notebook"
+- "You are done when you can"
+- a "Problem this notebook solves" section
+- numbered mechanics sections tied to the D2L subtopics
+- prediction prompts before important cells
+- self-contained code cells with explicit shape/state expectations
+- assertions as executable contracts
+- deliberate "Break it deliberately" sections for common real errors
+- checkpoint questions at the end
+- optional "What this chapter does not do" handoff when a full project or dataset-scale experiment is intentionally deferred
+
+The chapter should remain based on D2L, but it may expand beyond D2L where that improves mechanical fluency, architecture understanding, debugging ability, or preparation for the later production-shaped projects.
 
 ---
 
@@ -1158,7 +1188,8 @@ After generating notebooks, validate:
 - all code cells have no saved outputs
 - all code cells have `execution_count` set to null
 - all code cells parse as Python with `ast.parse`
-- no code cell exceeds the micro-example limit of 10 nonblank lines
+- maximum nonblank code-cell length is recorded
+- longer integrated cells are reviewed for coherence, self-containment, assertions, and debuggability instead of failing solely because they exceed 10 lines
 - generated files are in the correct chapter folder
 
 If local packages are missing and execution cannot be tested, report that explicitly instead of pretending execution passed.
@@ -1204,8 +1235,9 @@ Observed roadblocks from Chapter 2:
 - `apply_patch` may fail in this workspace with a sandbox wrapper error before reading a target file; for markdown-only updates, use a small targeted PowerShell or Python edit and verify the changed content immediately.
 - When using fallback shell appends after an `apply_patch` failure, do not paste diff markers such as leading `+` characters into file content; scan generator scripts for stray patch markers and run `python -m py_compile`.
 - Each generated notebook must be self-contained: if a helper such as `data_iter` is used in a subchapter, define it in that same notebook or import it explicitly.
-- After generation, validate the maximum nonblank line count per code cell so examples stay within the micro-example rule.
-- CNN notebooks should teach local windows, channels, padding, stride, pooling, and LeNet with inspectable toy tensors before framework abstractions or dataset-scale examples.
+- After generation, record the maximum nonblank line count per code cell and inspect long cells for a single coherent purpose, explicit contracts, and clear failure behavior.
+- CNN notebooks should teach local windows, channels, padding, stride, pooling, and LeNet with inspectable tensors before dataset-scale examples.
+- From Chapter 6 onward, notebook generation should follow the intensified Chapter 6-7 style: serious mechanics, more drills, more shape/state contracts, deliberate breakage demos, and production-shaped framework objects when they are the concept being taught.
 
 ---
 ## FINAL GOAL
@@ -1228,4 +1260,3 @@ Begin with the exact requested chapter or subchapter title, for example:
 Do NOT include any introduction or preface outside the notebook content.
 
 If the requested chapter has already been generated, revise or validate it only when the user asks for that. Otherwise continue with the next requested chapter/subchapter.
-

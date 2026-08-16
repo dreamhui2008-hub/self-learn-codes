@@ -1,6 +1,6 @@
 # D2L Project Roadmap
 
-Last updated: 2026-08-09
+Last updated: 2026-08-16
 
 ## Purpose
 
@@ -13,6 +13,10 @@ This is not a full walkthrough yet. Each project should later receive its own tu
 ## Learning Intensity Rule
 
 Each project should be dense but bounded.
+
+The project bar should stay production-facing. When a learner struggles, the response is more scaffolding, smaller mechanical steps, clearer shape checks, and more explicit walkthroughs, not a weaker target system. Projects may be scaled down in data size, model size, runtime, or deployment surface, but they should not be watered down into toy exercises once the relevant D2L concepts have been introduced.
+
+Code quality, result quality, and presentation quality matter. Future projects should push toward production-level habits: modular code, reproducible configs, clean experiment logs, focused tests, meaningful baselines, interpretable metrics, readable documentation, and outputs that could be inspected by another engineer. The learning path can move slowly, but the destination should remain serious.
 
 Every project must include:
 
@@ -113,6 +117,25 @@ Every phase must include expected outputs and failure checks:
 
 Scope should slow down when mechanics become new. If a project phase introduces several unfamiliar APIs or tensor patterns at once, add a bridge/tutorial section before the full project experiment. The expectation is that the student enters the main experiment with high-level understanding and enough mechanical fluency to read the code, not that they learn every new syntax item inside one large block.
 
+## Reference-Guided Project Rule
+
+Starting with Project 1, each major project should be guided by at least one reference paper, technical report, publication, or high-quality engineering writeup.
+
+The goal is not full paper reproduction. The goal is bounded imitation: understand the core idea, map it onto the relevant D2L chapters, implement a smaller but serious version, measure behavior, and document where the project intentionally differs from the original reference.
+
+Each project plan should include:
+
+- one primary reference
+- optional supporting references only when they answer a project question
+- a short "reference-to-implementation map"
+- a list of claims or mechanisms being imitated
+- a list of claims intentionally not reproduced
+- at least one baseline that predates or simplifies the reference idea
+- at least one ablation or weak variant
+- final notes comparing observed project behavior against the reference
+
+References should be selected close to the project start. Do not overload the roadmap with papers too early. The active rule is: choose enough reference material to make the project serious, but not so much that reading replaces implementation.
+
 ## Roadmap Shape
 
 This roadmap is not saying D2L ends at Chapter 7. D2L continues through Chapter 21. The projects are checkpoints inserted between D2L blocks so the material becomes mechanical rather than only readable.
@@ -120,25 +143,33 @@ This roadmap is not saying D2L ends at Chapter 7. D2L continues through Chapter 
 ```text
 D2L Chapters 2-4
 -> Project 0: Sparse Linear Experts Under Distribution Shift
--> D2L Chapters 5-7
--> Project 1: CNN Image Classifier + Custom Optimizer
--> D2L Chapters 8, 12-14 as the deeper vision/performance pass
--> D2L Chapters 9-11 and 15-16 as the sequence/attention/NLP pass
--> Project 2: NLP Embeddings and Similarity Search
--> Project 3: RAG/API/Agent System
--> D2L Chapters 17-21 as advanced/specialized methods
+-> D2L Chapters 5-6 as the deep-learning software bridge
+-> D2L Chapters 7-8
+-> Project 1: Paper-Guided CNN System
+   provisional direction: advanced AlexNet-style classifier
+-> D2L Chapters 9-10
+-> Project 2: Paper-Guided RNN Sequence System
+-> D2L Chapters 11-13
+-> Project 3: Transformer / Small LLM-Style Training System
+-> Optional Project 3B: RAG/API/Agent System
+   integrated only after the transformer baseline is stable, or kept as a sibling project
+-> D2L Chapter 14
+-> Project 4: Paper-Guided Computer Vision System
+-> D2L Chapters 15-16
+-> Project 5: NLP Representation, Search, and Application System
+-> D2L Chapters 17-21 parked until the chapters create a project reason
 -> Later: full AI product / startup-style system / research-track experiments
 ```
 
 ## Project 0: Sparse Linear Experts Under Distribution Shift
 
-Timing: after D2L Chapters 2-4, before D2L Chapters 5-7.
+Timing: after D2L Chapters 2-4, before the D2L Chapters 5-8 continuation.
 
 Role: integration project for tensors, preprocessing, linear algebra, calculus, autodiff, linear regression, softmax regression, generalization, weight decay, and distribution shift.
 
 Core idea:
 
-Build a small simulator where a router chooses among several simple linear experts. Each expert is only a Chapter 3 or Chapter 4 model. The system should feel like a toy version of the PFC/router idea, without pretending to be real hardware or real MoE training.
+Build a small simulator where a router chooses among several simple linear experts. Each expert is only a Chapter 3 or Chapter 4 model. The system should feel like a small-scale version of the PFC/router idea, without pretending to be real hardware or real MoE training.
 
 Main learning targets:
 
@@ -221,15 +252,16 @@ Done criteria:
 - can show one ablation where sparse routing helps, hurts, or behaves differently
 - can write a short technical note connecting the result back to D2L Chapters 2-4
 
-## D2L Chapters 5-7 Bridge
+## D2L Chapters 5-8 Bridge
 
 After Project 0, continue with:
 
 - Chapter 5: multilayer perceptrons, nonlinear activations, initialization, dropout, generalization
 - Chapter 6: modules, parameters, custom layers, initialization, file I/O, devices
 - Chapter 7: convolution, padding, stride, channels, pooling, LeNet
+- Chapter 8: modern CNN architectures
 
-The point of this stretch is to upgrade from linear models to compositional models.
+The point of this stretch is to upgrade from linear models to reusable deep learning systems and then into serious CNN architecture work.
 
 The mental shift:
 
@@ -237,10 +269,11 @@ The mental shift:
 - Chapter 5: stacked nonlinear layers can learn richer functions
 - Chapter 6: models become reusable software objects
 - Chapter 7: spatial structure matters, especially for images
+- Chapter 8: architecture choices become design decisions that can be tied back to published systems
 
 Important scope note:
 
-Chapters 5-7 are not the end of D2L. They are the first point where a CNN project becomes possible. Chapter 7 gives the basic mechanics of convolution, padding, stride, channels, pooling, and LeNet. Later D2L chapters make that practical and modern.
+Do not start the main CNN project immediately after Chapter 7. Chapter 7 gives the basic mechanics of convolution, padding, stride, channels, pooling, and LeNet. Chapter 8 makes the project more meaningful by adding modern CNN architecture patterns. The provisional Project 1 direction is an advanced AlexNet-style classifier, but the exact reference packet and implementation target should be finalized only after Chapter 8 is complete.
 
 ## Full D2L Continuation Map
 
@@ -251,27 +284,39 @@ Foundation block:
 - Chapters 2-4: tensors, data, linear algebra, calculus, autodiff, regression, classification, generalization, distribution shift
 - Project 0 belongs here
 
-Basic deep learning block:
+Deep learning software bridge:
 
-- Chapters 5-7: MLPs, modules, parameters, initialization, dropout, CNN basics
-- Project 1 can start here as a small CNN training project
+- Chapters 5-6: MLPs, modules, parameters, initialization, dropout, custom layers, file I/O, devices
+- No major standalone project is required here unless mechanics are weak
+- Notes and drills should still be serious: shape contracts, reusable modules, clean training loops, and checkpoint basics
 
-Modern vision/performance block:
+CNN architecture block:
 
-- Chapter 8: modern CNN architectures
+- Chapters 7-8: convolution mechanics, LeNet, and modern CNN architectures
+- Project 1 belongs here as a paper-guided CNN system
+
+Sequence block:
+
+- Chapters 9-10: recurrent neural networks and modern recurrent neural networks
+- Project 2 belongs here as a paper-guided RNN sequence system
+
+Attention, transformer, and training-systems block:
+
+- Chapter 11: attention mechanisms and transformers
 - Chapter 12: optimization algorithms
 - Chapter 13: computational performance
+- Project 3 belongs here as a transformer or small LLM-style training system
+- Optional Project 3B can add RAG/API/agent work after the core transformer baseline is stable
+
+Computer vision application block:
+
 - Chapter 14: computer vision
-- Project 1 can be revisited here with stronger models, augmentation, transfer learning, and better training discipline
+- Project 4 belongs here as a paper-guided practical vision system
 
-Sequence and NLP block:
+NLP application block:
 
-- Chapter 9: recurrent neural networks
-- Chapter 10: modern recurrent neural networks
-- Chapter 11: attention mechanisms and transformers
-- Chapter 15: NLP pretraining
-- Chapter 16: NLP applications
-- Project 2 belongs here, starting simple and becoming more meaningful after attention/transformers
+- Chapters 15-16: NLP pretraining and NLP applications
+- Project 5 belongs here, relocating the earlier NLP embeddings/search idea into the proper NLP block
 
 Advanced/specialized block:
 
@@ -280,120 +325,194 @@ Advanced/specialized block:
 - Chapter 19: hyperparameter optimization
 - Chapter 20: generative adversarial networks
 - Chapter 21: recommender systems
-- These chapters become optional branches depending on whether the next goal is career, product, research, or theory
+- These chapters are parked until the material itself creates a reason for another project
 
-## Project 1: CNN Image Classifier + Custom Optimizer
+## Project 1: Paper-Guided CNN System
 
-Timing: after D2L Chapters 5-7.
+Timing: after D2L Chapters 7-8.
 
-Role: first real deep learning training project.
+Role: first serious vision training project and first reference-guided architecture project.
 
 Core idea:
 
-Train an image classifier twice: first as a plain MLP baseline, then as a CNN. Use the project to understand why convolution, pooling, channels, initialization, dropout, and weight decay exist.
+Build a production-shaped image classification project guided by a CNN reference paper or publication. The provisional direction is an advanced AlexNet-style classifier. The likely primary reference is the AlexNet paper, but the exact project target should be revisited after Chapter 8 so the selected architecture matches what has actually been learned.
 
 Main learning targets:
 
 - load a real image dataset
 - inspect image tensors and label tensors
 - build an MLP baseline
-- build a CNN model
-- write a clean training loop
+- build a LeNet-style baseline
+- build a reference-inspired CNN model
+- write a reusable training and evaluation loop
 - track train/validation/test metrics
 - diagnose overfitting
-- use dropout and weight decay intentionally
+- use initialization, normalization, dropout, weight decay, and augmentation intentionally where appropriate
 - save and reload model weights
-- hand-write a basic `torch.optim.Optimizer` subclass
+- compare the implemented model against the reference architecture at the level of mechanisms, not just names
+- document what was scaled down, omitted, or changed
 
 Suggested dataset options:
 
 - Fashion-MNIST for easiest continuity with D2L
-- MNIST if the goal is pure debugging simplicity
-- CIFAR-10 if ready for harder images
+- CIFAR-10 for a more meaningful color-image version
+- Tiny ImageNet or a curated small image dataset only if runtime and data handling are under control
 
-Custom optimizer add-on:
+Reference-guided scope:
 
-Start with simple SGD as a custom optimizer. Then optionally add momentum or a gated-update variant inspired by Stage 3/4 ideas.
+- imitate architecture motifs such as stacked convolution blocks, larger early receptive fields where justified, nonlinearities, pooling, dropout, and classifier heads
+- keep input size, dataset, and training budget scaled to local hardware
+- compare against MLP and LeNet-style baselines
+- include at least one ablation, such as removing dropout, changing kernel sizes, weakening augmentation, or reducing depth
+- use standard PyTorch optimizers unless a custom optimizer becomes a deliberate add-on later
+
+Required implementation skeleton:
+
+Project 1 should be written as a small production-shaped Python project, not as one large notebook. This structure is the source of truth for the future Project 1 tutorial unless deliberately revised:
+
+```text
+project_1_cnn_reference/
+  pyproject.toml
+  src/cnn_reference/
+    data.py
+    models.py
+    train.py
+    evaluate.py
+    checkpoint.py
+    cli.py
+    reference_notes.py
+  tests/
+    test_data.py
+    test_shapes.py
+    test_checkpoint.py
+    test_train_step.py
+  notebooks/
+    experiments.ipynb
+  configs/
+    default.toml
+```
+
+File responsibilities:
+
+- `data.py`: dataset loading, train/validation/test split logic, transforms, and DataLoader construction
+- `models.py`: MLP baseline, LeNet-style baseline, and reference-inspired CNN definitions with explicit shape notes
+- `train.py`: reusable training loop, epoch loop, metric collection, and device placement
+- `evaluate.py`: validation/test loops, accuracy/loss metrics, and per-class or confusion-matrix helpers
+- `checkpoint.py`: save and reload model weights, optimizer state, config, and metric history
+- `cli.py`: command-line entry points for training, evaluation, and checkpoint inspection
+- `reference_notes.py`: structured notes mapping reference mechanisms to implementation choices
+- `tests/`: focused tests for data shapes, model forward shapes, checkpoint round trips, and one train-step update
+- `notebooks/experiments.ipynb`: small experiment notebook that calls project modules instead of storing repeated helper code
+- `configs/default.toml`: reproducible default settings for the selected dataset and model
 
 Done criteria:
 
 - MLP baseline works
-- CNN beats or meaningfully differs from MLP
+- LeNet-style baseline works
+- reference-inspired CNN beats, meaningfully differs from, or fails against the baseline for explainable reasons
 - training curves are saved
 - overfitting is demonstrated and reduced
-- custom optimizer can train at least one model without using Adam
-- final notes explain convolution, pooling, channels, and optimizer state in plain language
+- at least one architecture or regularization ablation is run
+- final notes explain convolution, pooling, channels, architecture motifs, and reference deviations in plain language
 
-## Project 2: NLP Embeddings and Similarity Search
+## Project 2: Paper-Guided RNN Sequence System
 
-Timing: after Project 1 and after enough D2L sequence/attention/NLP material to make text representations feel grounded. A shallow TF-IDF warmup can happen earlier, but the real version belongs after Chapters 9-11 and 15-16.
+Timing: after D2L Chapters 9-10.
 
-Role: first language representation project before RAG.
+Role: sequence-modeling checkpoint before attention and transformers.
 
 Core idea:
 
-Build a small text system that turns text into vectors, uses those vectors for classification and similarity search, and evaluates whether the retrieved neighbors or predicted labels make sense.
+Build a production-shaped RNN sequence project guided by a recurrent-model reference. The exact task can be language modeling, sequence classification, time-series forecasting, or another sequence problem, but it should force the mechanics of hidden state, recurrence, truncation, batching, and evaluation to become concrete.
 
 Main learning targets:
 
-- tokenize text
-- build simple bag-of-words or TF-IDF features
-- train a text classifier
-- compute cosine similarity
-- build a small embedding search index
-- compare keyword search against vector similarity
-- evaluate retrieval quality
-- inspect failure cases manually
+- prepare sequential data with explicit time and batch dimensions
+- build simple RNN, GRU, or LSTM baselines depending on the selected reference
+- handle hidden-state initialization, detachment, and sequence boundaries
+- compare teacher-forced training against autoregressive generation or rollout where relevant
+- measure loss, accuracy, perplexity, forecasting error, or task-specific sequence metrics
+- inspect generated or predicted sequences manually
+- run at least one ablation involving sequence length, hidden size, recurrence type, or state handling
+- write a reference-to-implementation map
 
 Suggested dataset options:
 
-- movie review sentiment
-- news topic classification
-- support-ticket category classification
-- personal notes or curated article snippets
-
-Connection to Project 0:
-
-- query vectors return
-- cosine similarity becomes a real retrieval tool
-- region/expert routing becomes document or embedding retrieval
-- distribution shift becomes topic shift, style shift, or vocabulary shift
-
-Optional research hook:
-
-After the baseline works, skim selected computational neuroscience material from Neuromatch only where it clarifies sparse coding, local learning, or representational similarity.
+- character-level or word-level language modeling corpus
+- sentiment or topic sequences if classification is preferred
+- small time-series dataset if forecasting better exposes recurrence
+- curated personal text only if privacy and cleaning rules are explicit
 
 Done criteria:
 
-- text classifier baseline works
-- similarity search returns inspectable neighbors
-- retrieval quality is measured with simple metrics
-- at least one failure mode is analyzed
-- final notes explain embeddings as geometry, not magic
+- sequential data pipeline is reproducible
+- at least one non-recurrent baseline is included where possible
+- RNN/GRU/LSTM model trains and evaluates cleanly
+- hidden-state mechanics are explained with tensor shapes
+- at least one sequence-specific failure mode is analyzed
+- final notes explain recurrence and gating in plain language
 
-## Project 3: RAG/API/Agent System
+## Project 3: Transformer / Small LLM-Style Training System
 
-Timing: after Project 2.
+Timing: after D2L Chapters 11-13.
 
-Role: transition from model learner to AI systems builder.
+Role: modern attention/transformer project, pushed as close to production-quality training practice as is realistic at small scale.
 
 Core idea:
 
-Build a retrieval-augmented question-answering system, wrap it in an API, add evaluation and logging, then extend it into a small agent with tool use and memory/state.
+Build a small transformer training system guided by attention and transformer references. The default direction is a small decoder-only language model or another transformer variant that makes masking, attention, batching, optimization, checkpoints, evaluation, and performance visible. The scale can be small; the engineering should not be sloppy.
+
+Main learning targets:
+
+- implement or assemble tokenization and dataset preparation with clear sequence/block shapes
+- build attention masks and explain their shapes
+- implement or use transformer blocks with embeddings, positional information, multi-head attention, MLP blocks, residual paths, normalization, and output heads
+- train with a reproducible config
+- use Chapter 12 optimization ideas intentionally
+- use Chapter 13 performance ideas intentionally: device placement, batching, profiling, throughput, memory, and checkpointing
+- evaluate with loss/perplexity and at least one task-appropriate qualitative or behavioral check
+- save checkpoints, resume training, and log runs
+- keep tests for model shapes, masks, one training step, and checkpoint round trips
+- document reference deviations and scaling choices
+
+Candidate directions:
+
+- decoder-only small language model
+- encoder-based classifier or representation learner
+- sequence-to-sequence transformer if the selected reference and dataset justify the extra complexity
+
+Done criteria:
+
+- tokenizer or text preprocessing path is reproducible
+- transformer forward pass has explicit shape checks
+- training can resume from checkpoint
+- at least one baseline or simplified transformer variant is included
+- at least one optimization or performance comparison is logged
+- final notes explain attention, masking, residual paths, optimizer choices, and scaling limits
+
+## Optional Project 3B: RAG/API/Agent System
+
+Timing: after Project 3 has a stable baseline, or as a sibling project if the goal shifts toward AI systems.
+
+Role: transition from model learner to AI systems builder without bloating the core transformer project.
+
+Core idea:
+
+Build a retrieval-augmented question-answering system, wrap it in an API, add evaluation and logging, then optionally extend it into a small agent with tool use and memory/state. This may use the Project 3 model only if that is technically sensible. It is also acceptable to use an external embedding or generation API if the goal is systems behavior rather than model pretraining.
 
 Main learning targets:
 
 - ingest documents
 - chunk text
-- create embeddings
+- create or call embeddings
 - store vectors
 - retrieve relevant chunks
 - generate answers with citations or evidence
 - evaluate retrieval and answer quality
-- serve the system with FastAPI
+- serve the system with FastAPI or an equivalent API layer
 - track latency and failures
 - add basic logging and monitoring
-- build a small agent loop with tools and state
+- build a small agent loop with tools and state only after RAG works
 
 Minimum system components:
 
@@ -402,17 +521,9 @@ Minimum system components:
 - retriever
 - answer generator
 - evaluation set
-- FastAPI service
+- API service
 - logs for query, retrieved chunks, answer, latency, and errors
 - simple UI or CLI client
-
-Agent extension:
-
-The agent should use tools deliberately, not as decoration. Tool use should have observable state, failure handling, and clear stop conditions.
-
-Optional Stage 6 research hook:
-
-Once the ordinary agent memory/state version works, experiment with a toy session-local adapter or writable memory module. It should be instantiated per session and either merged, saved, or discarded based on evaluation.
 
 Done criteria:
 
@@ -420,12 +531,71 @@ Done criteria:
 - retrieval can be evaluated separately from generation
 - API can serve requests
 - logs expose latency and failure cases
-- agent loop can use at least one real tool
+- agent loop, if included, can use at least one real tool with clear stop conditions
 - final notes distinguish model behavior, retrieval behavior, and system behavior
+
+## Project 4: Paper-Guided Computer Vision System
+
+Timing: after D2L Chapter 14.
+
+Role: practical computer vision project after the CNN architecture project.
+
+Core idea:
+
+Build a computer vision system guided by a vision reference that is closer to applied CV than generic classification. The exact task should be chosen after Chapter 14. Possible directions include transfer learning, detection, segmentation, fine-grained classification, augmentation-heavy training, or a small deployment-oriented vision pipeline.
+
+Main learning targets:
+
+- use a real vision dataset with clear train/validation/test handling
+- apply augmentation and preprocessing deliberately
+- use pretrained weights or transfer learning when appropriate
+- evaluate with task-specific metrics, not only top-1 accuracy when the task demands more
+- inspect errors visually
+- compare against a simpler baseline
+- document reference mechanisms and practical deviations
+
+Done criteria:
+
+- data pipeline handles images and labels cleanly
+- model or pipeline trains/evaluates reproducibly
+- visual failure analysis is included
+- at least one task-specific metric is reported
+- at least one ablation or preprocessing comparison is run
+- final notes connect Chapter 14 concepts to the selected reference
+
+## Project 5: NLP Representation, Search, and Application System
+
+Timing: after D2L Chapters 15-16.
+
+Role: main NLP project, relocating the earlier NLP embeddings/search idea into the correct NLP block.
+
+Core idea:
+
+Build a small but serious text system that turns text into useful representations, uses those representations for classification, similarity search, retrieval, or another NLP application, and evaluates whether the predictions or retrieved neighbors make sense. This project should be reference-guided, with the reference chosen after Chapters 15-16 clarify the available NLP mechanisms.
+
+Main learning targets:
+
+- tokenize text
+- build simple lexical baselines such as bag-of-words or TF-IDF when useful
+- train or fine-tune a text model
+- compute or use embeddings
+- build a small similarity or retrieval index
+- compare keyword search against vector similarity where relevant
+- evaluate retrieval, classification, or task quality
+- inspect failure cases manually
+- connect NLP pretraining ideas to downstream behavior
+
+Done criteria:
+
+- text classifier baseline works
+- similarity search returns inspectable neighbors
+- retrieval quality is measured with simple metrics
+- at least one failure mode is analyzed
+- final notes explain embeddings and representations as geometry, training signal, and task behavior rather than magic
 
 ## Later Project Track
 
-After these four projects, choose based on goal.
+After Projects 0-5, and after optional Project 3B if it is selected, choose based on goal.
 
 Career/product track:
 
@@ -461,32 +631,45 @@ Immediate:
 
 After Project 0:
 
-- D2L Chapters 5-7
+- D2L Chapters 5-8
 
 During Project 1:
 
-- PyTorch optimizer documentation
-- selected D2L material on initialization, dropout, and convolution
-- continue into D2L Chapter 8 and Chapter 14 when the basic CNN project needs stronger vision practice
+- D2L Chapter 7 convolution mechanics
+- D2L Chapter 8 modern CNN architectures
+- primary CNN reference, likely AlexNet if that remains the selected direction
+- PyTorch image-data, model, checkpoint, and evaluation documentation as needed
 
-After the first CNN project:
+During Project 2:
 
-- D2L Chapter 8 for modern CNN architectures
-- D2L Chapter 12 for optimizers
-- D2L Chapter 13 for computational performance
-- D2L Chapter 14 for practical computer vision
-
-Before and during Project 2:
-
-- D2L Chapters 9-11 for sequence models, attention, and transformers
-- D2L Chapters 15-16 for NLP pretraining and NLP applications
+- D2L Chapters 9-10 for recurrent sequence models
+- one RNN/GRU/LSTM reference selected after Chapter 10
 - Neuromatch computational neuroscience tutorials, selectively
-- Chip Huyen, Designing Machine Learning Systems
 
 During Project 3:
 
+- D2L Chapter 11 for attention and transformers
+- D2L Chapter 12 for optimization algorithms
+- D2L Chapter 13 for computational performance
+- primary transformer or small-LLM reference selected after Chapter 11
+- selected LLM-from-scratch or training-systems material only when implementation creates demand
+
+During optional Project 3B:
+
 - Chip Huyen, AI Engineering
 - production RAG material only after a minimal RAG baseline works
+
+During Project 4:
+
+- D2L Chapter 14 for practical computer vision
+- one computer vision reference selected after Chapter 14
+- OpenCV, detection, segmentation, transfer-learning, or deployment resources only if they support the chosen task
+
+During Project 5:
+
+- D2L Chapters 15-16 for NLP pretraining and NLP applications
+- one NLP representation, pretraining, retrieval, or application reference selected after Chapter 16
+- Chip Huyen, Designing Machine Learning Systems if the NLP system needs production evaluation framing
 
 Later:
 
@@ -501,11 +684,12 @@ Project 0 is complete.
 
 Do not spend more active time on Chapter 27. The final done criteria have already been satisfied by the completed notes, notebook runs, metrics work, and final writeup.
 
-The next main step is to return to D2L and work through Chapters 5-7:
+The next main step is to return to D2L and work through Chapters 5-8 before locking Project 1:
 
 - Chapter 5: multilayer perceptrons, nonlinear activations, initialization, dropout, and generalization
 - Chapter 6: modules, parameters, custom layers, initialization, file I/O, and devices
 - Chapter 7: convolution, padding, stride, channels, pooling, and LeNet
+- Chapter 8: modern CNN architectures
 
 Current action order:
 
@@ -513,14 +697,15 @@ Current action order:
 2. Keep notes mechanically explicit: shapes, parameters, loss, gradients, train/test behavior, and what each new API changes.
 3. After Chapter 5, continue directly into Chapter 6 so models become reusable `nn.Module` objects instead of notebook-local parameter tensors.
 4. After Chapter 6, continue into Chapter 7 to build convolution mechanics.
-5. After Chapter 7, start Project 1: CNN Image Classifier + Custom Optimizer.
+5. After Chapter 7, continue into Chapter 8 so CNN architecture choices are grounded in modern references.
+6. After Chapter 8, finalize the Project 1 reference packet and start the paper-guided CNN system, provisionally an advanced AlexNet-style classifier.
 
 Key takeaways to carry forward:
 
 - tensor shapes, scalar losses, manual `backward()`, gradient clearing, SGD, and train/test separation are now bedrock mechanics
 - sparse routing must be read mechanically: `route_ids` choose experts, labels are prediction targets, and routing quality is separate from model quality
 - regularization is contextual; smaller norms are not automatically better
-- replay showed a small stability/plasticity tradeoff in the toy shift experiment: better old-distribution loss, slightly worse new-distribution loss
+- replay showed a small stability/plasticity tradeoff in the Project 0 shift experiment: better old-distribution loss, slightly worse new-distribution loss
 - controlled comparisons matter: same seed, same initialization, same data split, and clear baselines
 
 Bedrocks for future projects:
@@ -546,6 +731,7 @@ Active rule:
 - do not add a resource just because it is good
 - add a resource only when it answers a current project question
 - prefer one good resource per project block over five parallel resources
+- select the primary project reference close to the project start
 - use GitHub awesome lists as idea mines, not curricula
 
 ### Resource Dump Items Worth Parking
@@ -592,8 +778,8 @@ This is the best near-term bridge to the algorithm topology. Use only selected m
 
 When to consider:
 
-- after the NLP/search project, if research energy is high
-- between Project 2 and Project 3, selectively
+- after Project 5, if research energy is high
+- after Project 3, if attention or memory experiments create a concrete question
 - when extending Project 0 into local learning, replay, or catastrophic-forgetting experiments
 
 LLM from scratch / systems capstone:
@@ -609,10 +795,10 @@ These are later-stage implementation-heavy resources for tokenizers, transformer
 
 When to consider:
 
-- after D2L attention/transformer chapters
-- after the NLP embeddings/search project
-- after basic RAG/API work is already functional
-- not during Project 0
+- during or after Project 3, once the transformer baseline is stable
+- after optional Project 3B, if systems and inference become the focus
+- after Project 5, if NLP pretraining/application work creates demand
+- not during Projects 0-2
 
 Theory shelf:
 
@@ -648,7 +834,8 @@ Useful only after CNN basics and modern vision chapters. These should support a 
 When to consider:
 
 - after D2L Chapters 8 and 14
-- when revisiting the CNN project with real augmentation, transfer learning, detection, segmentation, or deployment
+- during Project 1 for CNN architecture support
+- during Project 4 for augmentation, transfer learning, detection, segmentation, or deployment
 
 RAG / LangChain / app-development shelf:
 
@@ -664,7 +851,7 @@ Useful only once the minimal RAG pipeline exists. Do not begin with LangChain ab
 
 When to consider:
 
-- during Project 3
+- during optional Project 3B
 - after a minimal RAG pipeline answers questions against a known corpus
 - when adding production evaluation, observability, or agent tooling
 
@@ -705,10 +892,16 @@ Current priority remains:
 
 ```text
 Project 0
--> D2L Chapters 5-7
--> CNN/custom optimizer project
--> D2L modern vision/optimization/performance
--> sequence/attention/NLP block
--> NLP/search project
--> RAG/API/agent project
+-> D2L Chapters 5-6
+-> D2L Chapters 7-8
+-> Project 1: paper-guided CNN system
+-> D2L Chapters 9-10
+-> Project 2: paper-guided RNN sequence system
+-> D2L Chapters 11-13
+-> Project 3: transformer / small LLM-style training system
+-> optional Project 3B: RAG/API/agent system
+-> D2L Chapter 14
+-> Project 4: paper-guided computer vision system
+-> D2L Chapters 15-16
+-> Project 5: NLP representation, search, and application system
 ```

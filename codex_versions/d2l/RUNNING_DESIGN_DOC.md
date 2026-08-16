@@ -1,6 +1,6 @@
 ﻿# D2L Notebook Generation Running Design Doc
 
-Last updated: 2026-07-05
+Last updated: 2026-08-16
 
 ## Purpose
 
@@ -183,7 +183,9 @@ Validation performed:
 - code cells have `execution_count: null`
 - code cells have `outputs: []`
 - code cells parse with Python `ast.parse`
-- no code cell exceeds 10 nonblank lines
+- maximum code-cell length was inspected
+- some integrated mechanics cells intentionally exceed the legacy 10-line micro-example cap
+- longest code cell: 29 nonblank lines
 - files are stored under `d2l/Chapter 6 - Builders' Guide/`
 
 Execution limitation:
@@ -193,6 +195,8 @@ Execution limitation:
 
 Implementation notes:
 
+- Chapter 6 uses the intensified notebook-native style: problem statements, done criteria, explicit shape/state contracts, assertions, deliberate breakage demos, and checkpoint prompts.
+- Longer cells are used where they teach one coherent software contract, such as module ownership, checkpoint contents, optimizer state, or device-safe training.
 - File I/O examples use temporary directories and do not require persistent external artifacts.
 - GPU examples use `torch.cuda.is_available()` and CPU fallback logic.
 
@@ -218,7 +222,9 @@ Validation performed:
 - code cells have `execution_count: null`
 - code cells have `outputs: []`
 - code cells parse with Python `ast.parse`
-- no code cell exceeds 10 nonblank lines
+- maximum code-cell length was inspected
+- some integrated mechanics cells intentionally exceed the legacy 10-line micro-example cap
+- longest code cell: 28 nonblank lines
 - files are stored under `d2l/Chapter 7 - Convolutional Neural Networks/`
 
 Execution limitation:
@@ -228,6 +234,9 @@ Execution limitation:
 
 Implementation notes:
 
+- Chapter 7 continues the intensified notebook-native style from Chapter 6.
+- Every subchapter includes an explicit breakage or failure-mode section.
+- Assertions are used as executable contracts for shapes, channel counts, parameter counts, device-safe values, training-step behavior, and expected failures.
 - CNN examples use tiny synthetic image tensors and manual kernels instead of `torchvision` datasets or downloads.
 - Chapter 7 explicitly explains the deep-learning convention of calling cross-correlation layers convolutional layers.
 - LeNet training uses one tiny synthetic batch to teach mechanics without network access or long execution.
@@ -357,27 +366,38 @@ Resolution:
 
 ## Current Notebook Generation Pattern
 
-Each subchapter notebook should contain:
+Chapters 2-5 used the original maximum-granularity six-part template. That pattern is now legacy/archive guidance, not the active default.
 
-- a top-level chapter title markdown cell
+Active pattern from Chapter 6 onward:
+
+- top-level chapter title markdown cell
 - required imports near the beginning
-- one section per syllabus subheading
-- the six-part required structure:
-  - `1. Intuition`
-  - `2. Why this exists`
-  - `3. Examples`
-  - `4. Step-by-step breakdown`
-  - `5. Connection to ML systems`
-  - `6. Common confusion points`
-- code cells without saved outputs
-- small examples that respect the learner profile
+- "How to use this notebook"
+- "You are done when you can"
+- "The Problem This Notebook Solves"
+- numbered mechanics sections tied to D2L subtopics
+- prediction prompts before important cells
+- self-contained code cells without saved outputs
+- shape, state, parameter, device, gradient, or output assertions as executable contracts
+- deliberate "Break it deliberately" sections for common real errors
+- checkpoint questions at the end
+- optional "What this chapter does not do" handoff when larger projects or dataset-scale work are intentionally deferred
 
 Layering rule:
 
 - explain with raw intuition first
-- show manual Python implementation when relevant
-- show NumPy version when relevant
-- show PyTorch/D2L framework mapping last
+- expose the mechanism with drills and shape/state contracts
+- use manual Python or NumPy when that clarifies the mechanism
+- use PyTorch-first drills when the PyTorch object is the concept itself, as in modules, parameters, checkpoints, devices, and CNN layers
+- use production-shaped framework objects after the hidden mechanics have been explained
+
+Intensity rule:
+
+- Future chapters should stay closer to the Chapter 6-7 style than the older Chapter 2-5 style.
+- Do not water down future chapters to fit the old 10-line limit.
+- If a learner struggles, add smaller bridge drills, clearer explanations, more assertions, and more failure analysis.
+- Keep data/model/runtime small when needed, but keep the target mechanics serious.
+- Record maximum code-cell length during validation, but judge long cells by coherence and debuggability rather than by a fixed line cap.
 
 ## Next Work Queue
 
@@ -401,16 +421,17 @@ Recommended first step for Chapter 8:
 - create `d2l/generation_scripts/generate_chapter_08.py`
 - generate notebooks into `d2l/Chapter 8 - Modern Convolutional Neural Networks/`
 - keep the generator script after successful generation
-- validate JSON, no outputs, null execution counts, Python syntax, and code-cell line limits
-- keep architecture examples tiny and shape-focused unless real training or datasets are explicitly approved
+- validate JSON, no outputs, null execution counts, Python syntax, and maximum code-cell lengths
+- inspect longer cells for a single coherent purpose, assertions, and clear failure behavior
+- keep examples offline and inspectable unless real training or datasets are explicitly approved
+- do not reduce architecture lessons to over-simplified fragments; include block construction, shape tracing, parameter counts, and reference-aware architecture reasoning where useful
+- use synthetic forward passes or one-step training drills for wiring checks
+- defer full dataset training, metric curves, and serious model comparison to Project 1 unless explicitly approved
 - update this document with validation results and any new roadblocks
 ## Open Decisions
 
 - Whether to install notebook execution dependencies locally for stronger validation.
 - Whether to retroactively recreate a reusable Chapter 2 generator script from the generated notebooks for reference.
 - Whether future chapters should be generated one subchapter at a time or all subchapters per chapter after user approval.
-
-
-
 
 
