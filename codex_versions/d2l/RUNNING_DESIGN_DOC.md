@@ -1,6 +1,6 @@
 ﻿# D2L Notebook Generation Running Design Doc
 
-Last updated: 2026-08-16
+Last updated: 2026-08-18
 
 ## Purpose
 
@@ -20,12 +20,14 @@ Root folder:
 - `d2l/Chapter 5 - Multilayer Perceptrons/`: completed Chapter 5 notebooks
 - `d2l/Chapter 6 - Builders' Guide/`: completed Chapter 6 notebooks
 - `d2l/Chapter 7 - Convolutional Neural Networks/`: completed Chapter 7 notebooks
+- `d2l/Chapter 8 - Modern Convolutional Neural Networks/`: completed Chapter 8 notebooks
 - `d2l/generation_scripts/`: persistent Python scripts used to generate or repair notebooks
 - `d2l/generation_scripts/generate_chapter_03.py`: persistent generator for Chapter 3
 - `d2l/generation_scripts/generate_chapter_04.py`: persistent generator for Chapter 4
 - `d2l/generation_scripts/generate_chapter_05.py`: persistent generator for Chapter 5
 - `d2l/generation_scripts/generate_chapter_06.py`: persistent generator for Chapter 6
 - `d2l/generation_scripts/generate_chapter_07.py`: persistent generator for Chapter 7
+- `d2l/generation_scripts/generate_chapter_08.py`: persistent generator for Chapter 8
 
 ## Completed Work
 
@@ -240,6 +242,52 @@ Implementation notes:
 - CNN examples use tiny synthetic image tensors and manual kernels instead of `torchvision` datasets or downloads.
 - Chapter 7 explicitly explains the deep-learning convention of calling cross-correlation layers convolutional layers.
 - LeNet training uses one tiny synthetic batch to teach mechanics without network access or long execution.
+
+### Chapter 8 - Modern Convolutional Neural Networks
+
+Completed as separate notebooks:
+
+- `Chapter 8.1 - Deep Convolutional Neural Networks (AlexNet).ipynb`
+- `Chapter 8.2 - Networks Using Blocks (VGG).ipynb`
+- `Chapter 8.3 - Network in Network (NiN).ipynb`
+- `Chapter 8.4 - Multi-Branch Networks (GoogLeNet).ipynb`
+- `Chapter 8.5 - Batch Normalization.ipynb`
+- `Chapter 8.6 - Residual Networks (ResNet) and ResNeXt.ipynb`
+- `Chapter 8.7 - Densely Connected Networks (DenseNet).ipynb`
+- `Chapter 8.8 - Designing Convolution Network Architectures.ipynb`
+
+Generation script kept:
+
+- `d2l/generation_scripts/generate_chapter_08.py`
+
+Validation performed:
+
+- generator script compiles with `python3 -m py_compile`
+- all notebooks parse as JSON
+- all notebooks use `nbformat: 4`
+- all notebooks use `nbformat_minor: 5`
+- code cells have `execution_count: null`
+- code cells have `outputs: []`
+- code cells parse with Python `ast.parse`
+- required Chapter 6+ headings are present: usage, done criteria, problem statement, breakage demo, and checkpoint
+- maximum code-cell length was inspected
+- some integrated mechanics cells intentionally exceed the legacy 10-line micro-example cap
+- longest code cell: 28 nonblank lines
+- generated source and notebooks contain only ASCII characters
+- files are stored under `d2l/Chapter 8 - Modern Convolutional Neural Networks/`
+
+Execution limitation:
+
+- Full execution was not verified locally because the environment did not have `torch`, `numpy`, `pandas`, or `matplotlib` installed.
+
+Implementation notes:
+
+- Chapter 8 continues the intensified notebook-native style from Chapters 6-7.
+- Architecture lessons use tiny synthetic tensors, scaled-down networks, shape tracing, parameter counts, and deliberate failure cells.
+- No `torchvision`, dataset downloads, ImageNet/Fashion-MNIST training, Kaggle flow, or long training runs are required.
+- AlexNet, VGG, NiN, GoogLeNet, BatchNorm, ResNet/ResNeXt, DenseNet, and AnyNet/RegNet-style design are taught through inspectable PyTorch modules and architecture contracts.
+- Full dataset training, accuracy curves, architecture search, and hardware benchmarking remain deferred.
+
 ## Roadblocks And Resolutions
 
 ### Windows command-length limit
@@ -403,35 +451,34 @@ Intensity rule:
 
 Next chapter to generate:
 
-- `Chapter 8 - Modern Convolutional Neural Networks`
+- `Chapter 9 - Recurrent Neural Networks`
 
 Expected subchapter notebooks:
 
-- `Chapter 8.1 - Deep Convolutional Neural Networks (AlexNet).ipynb`
-- `Chapter 8.2 - Networks Using Blocks (VGG).ipynb`
-- `Chapter 8.3 - Network in Network (NiN).ipynb`
-- `Chapter 8.4 - Multi-Branch Networks (GoogLeNet).ipynb`
-- `Chapter 8.5 - Batch Normalization.ipynb`
-- `Chapter 8.6 - Residual Networks (ResNet) and ResNeXt.ipynb`
-- `Chapter 8.7 - Densely Connected Networks (DenseNet).ipynb`
-- `Chapter 8.8 - Designing Convolution Network Architectures.ipynb`
+- `Chapter 9.1 - Working with Sequences.ipynb`
+- `Chapter 9.2 - Converting Raw Text into Sequence Data.ipynb`
+- `Chapter 9.3 - Language Models.ipynb`
+- `Chapter 9.4 - Recurrent Neural Networks.ipynb`
+- `Chapter 9.5 - Recurrent Neural Network Implementation from Scratch.ipynb`
+- `Chapter 9.6 - Concise Implementation of Recurrent Neural Networks.ipynb`
+- `Chapter 9.7 - Backpropagation Through Time.ipynb`
 
-Recommended first step for Chapter 8:
+Recommended first step for Chapter 9:
 
-- create `d2l/generation_scripts/generate_chapter_08.py`
-- generate notebooks into `d2l/Chapter 8 - Modern Convolutional Neural Networks/`
+- create `d2l/generation_scripts/generate_chapter_09.py`
+- generate notebooks into `d2l/Chapter 9 - Recurrent Neural Networks/`
 - keep the generator script after successful generation
 - validate JSON, no outputs, null execution counts, Python syntax, and maximum code-cell lengths
 - inspect longer cells for a single coherent purpose, assertions, and clear failure behavior
-- keep examples offline and inspectable unless real training or datasets are explicitly approved
-- do not reduce architecture lessons to over-simplified fragments; include block construction, shape tracing, parameter counts, and reference-aware architecture reasoning where useful
-- use synthetic forward passes or one-step training drills for wiring checks
-- defer full dataset training, metric curves, and serious model comparison to Project 1 unless explicitly approved
+- keep examples offline and inspectable unless real text dataset downloads are explicitly approved
+- use tiny synthetic or inline text corpora for tokenization, vocabulary, sequence partitioning, and language-model drills
+- make sequence axis contracts explicit: batch, time, vocabulary size, hidden size, and recurrent state shape
+- include deliberate failure cells for off-by-one labels, hidden-state shape mismatch, detached-state mistakes, and exploding gradients where useful
+- defer full corpus training, serious perplexity curves, and large model comparisons unless explicitly approved
 - update this document with validation results and any new roadblocks
+
 ## Open Decisions
 
 - Whether to install notebook execution dependencies locally for stronger validation.
 - Whether to retroactively recreate a reusable Chapter 2 generator script from the generated notebooks for reference.
 - Whether future chapters should be generated one subchapter at a time or all subchapters per chapter after user approval.
-
-
