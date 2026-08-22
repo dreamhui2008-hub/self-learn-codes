@@ -157,6 +157,8 @@ D2L Chapters 2-4
 -> Project 4: Paper-Guided Computer Vision System
 -> D2L Chapters 15-16
 -> Project 5: NLP Representation, Search, and Application System
+-> Production ML Systems Capstone
+   convert one completed ML project into a deployed service with API, persistence, CI, observability, and evaluation
 -> D2L Chapters 17-21 parked until the chapters create a project reason
 -> Later: full AI product / startup-style system / research-track experiments
 ```
@@ -593,13 +595,69 @@ Done criteria:
 - at least one failure mode is analyzed
 - final notes explain embeddings and representations as geometry, training signal, and task behavior rather than magic
 
+## Production ML Systems Capstone
+
+Timing: after Project 5, or earlier after optional Project 3B if the career goal shifts strongly toward ML software engineering roles.
+
+Role: job-readiness bridge from "I can train and evaluate models" to "I can own an ML service end to end." This is the capstone that directly strengthens the production gaps in ML software engineer postings such as API design, persistence, deployment, CI/CD, logging, observability, evaluation, and operating a model-backed system.
+
+Core idea:
+
+Take one completed ML project, preferably Project 3B or Project 5, and turn it into a small deployed ML product/service. The model does not need to be large. The engineering surface should be real: a user or client sends a request, the service retrieves or computes model features, produces a response, records useful logs/metrics, and can be tested, rebuilt, and redeployed reproducibly.
+
+Recommended project directions:
+
+- RAG or semantic search service over a known document corpus
+- text classification or similarity API with stored examples and evaluation cases
+- vision inference API with uploaded images, saved predictions, and error review
+- experiment/evaluation dashboard for a previously trained model
+
+Minimum system components:
+
+- `api/`: FastAPI or equivalent service with request/response schemas
+- `model/`: loading path for trained weights, tokenizer/vectorizer, preprocessing, and inference
+- `storage/`: relational database, document store, vector index, or object storage depending on the project
+- `evals/`: fixed evaluation set, regression tests, quality metrics, and failure cases
+- `tests/`: unit tests plus at least one API/integration test
+- `configs/`: environment-aware config for local and deployed runs
+- `docker/` or `Dockerfile`: reproducible runtime container
+- `ci/`: GitHub Actions or equivalent checks for tests, formatting, and basic build validation
+- `logs/`: structured logs for request ID, latency, model/version, retrieved context or features, prediction, and errors
+- `docs/`: design doc, runbook, model card or service card, and known limitations
+
+Main learning targets:
+
+- separate offline training code from online inference code
+- design stable input/output schemas
+- persist data, predictions, embeddings, or evaluation records
+- write tests for preprocessing, inference, API behavior, and saved artifacts
+- containerize the service and run it from a clean environment
+- add CI checks that would catch broken imports, broken tests, and broken API contracts
+- log latency, failures, model version, and important input/output metadata
+- evaluate model quality separately from service reliability
+- write operational notes: how to run, how to deploy, how to debug, how to roll back
+
+Done criteria:
+
+- service runs locally from a clean command
+- API has at least one real inference endpoint and one health/status endpoint
+- model or retrieval artifacts load without notebook state
+- persistence layer stores the key application records
+- tests cover preprocessing, inference, API behavior, and one failure case
+- CI passes from a fresh checkout
+- Docker image builds and runs
+- deployment target is documented, and deployed if practical
+- logs expose latency and failure cases
+- fixed eval set reports quality metrics before and after at least one code or model change
+- final writeup maps the project to ML software engineer responsibilities: data path, model path, API path, storage path, tests, deployment, observability, limitations, and future work
+
 ## Later Project Track
 
-After Projects 0-5, and after optional Project 3B if it is selected, choose based on goal.
+After Projects 0-5, the Production ML Systems Capstone, and optional Project 3B if it is selected, choose based on goal.
 
 Career/product track:
 
-- full AI product with RAG, agent, API, UI, evals, and deployment
+- deepen the capstone into a full AI product with RAG, agent, API, UI, evals, and deployment
 - startup-style personalized feed reader or research assistant
 - evaluation dashboard for retrieval quality, hallucination rate, latency, and regression tests
 
@@ -670,6 +728,12 @@ During Project 5:
 - D2L Chapters 15-16 for NLP pretraining and NLP applications
 - one NLP representation, pretraining, retrieval, or application reference selected after Chapter 16
 - Chip Huyen, Designing Machine Learning Systems if the NLP system needs production evaluation framing
+
+During Production ML Systems Capstone:
+
+- FastAPI, Docker, GitHub Actions, database/vector-store, and observability documentation as needed
+- Chip Huyen, Designing Machine Learning Systems for production evaluation, data/model monitoring, and failure analysis
+- deployment-platform documentation only after the local service, tests, and Docker path work
 
 Later:
 
