@@ -1,6 +1,6 @@
 # D2L Project Roadmap
 
-Last updated: 2026-08-16
+Last updated: 2026-08-24/
 
 ## Purpose
 
@@ -744,41 +744,226 @@ Later:
 
 ## Current Next Step
 
-Project 0 is complete.
+Project 0 and D2L Chapters 5-8 are complete.
 
-Do not spend more active time on Chapter 27. The final done criteria have already been satisfied by the completed notes, notebook runs, metrics work, and final writeup.
+The next main step is Project 1. Do not pause D2L for a full DevOps or MLOps course. Use small production-adjacent slices only when they directly support the current ML project.
 
-The next main step is to return to D2L and work through Chapters 5-8 before locking Project 1:
+Active cadence:
 
-- Chapter 5: multilayer perceptrons, nonlinear activations, initialization, dropout, and generalization
-- Chapter 6: modules, parameters, custom layers, initialization, file I/O, and devices
-- Chapter 7: convolution, padding, stride, channels, pooling, and LeNet
-- Chapter 8: modern CNN architectures
+```text
+D2L concept block
+-> one D2L project
+-> one small production wrapper around that exact project
+-> return to D2L
+```
 
-Current action order:
+### Near-Term Step Guide
 
-1. Start D2L Chapter 5.
-2. Keep notes mechanically explicit: shapes, parameters, loss, gradients, train/test behavior, and what each new API changes.
-3. After Chapter 5, continue directly into Chapter 6 so models become reusable `nn.Module` objects instead of notebook-local parameter tensors.
-4. After Chapter 6, continue into Chapter 7 to build convolution mechanics.
-5. After Chapter 7, continue into Chapter 8 so CNN architecture choices are grounded in modern references.
-6. After Chapter 8, finalize the Project 1 reference packet and start the paper-guided CNN system, provisionally an advanced AlexNet-style classifier.
+All resources in this section are free or have a free self-paced path as of 2026-08-24. Use local or notebook/cloud-free paths first. Do not use a paid cloud service unless a later project explicitly calls for it.
 
-Key takeaways to carry forward:
+#### 1. Before Project 1: Gritty Preflight
 
-- tensor shapes, scalar losses, manual `backward()`, gradient clearing, SGD, and train/test separation are now bedrock mechanics
-- sparse routing must be read mechanically: `route_ids` choose experts, labels are prediction targets, and routing quality is separate from model quality
-- regularization is contextual; smaller norms are not automatically better
-- replay showed a small stability/plasticity tradeoff in the Project 0 shift experiment: better old-distribution loss, slightly worse new-distribution loss
-- controlled comparisons matter: same seed, same initialization, same data split, and clear baselines
+Do this:
 
-Bedrocks for future projects:
+- get comfortable with shell paths, project folders, Git status/diff/commit, Python environments, Docker vocabulary, and MLflow vocabulary
+- run beginner examples only
+- stop before this turns into a separate DevOps course
 
-- always write shape contracts
-- keep global, random, and oracle-style baselines when possible
-- inspect per-region or per-class behavior instead of trusting only average metrics
-- separate training performance from generalization
-- keep notebooks clean-restartable
+Why:
+
+- shell/Git/package basics make project folders, scripts, paths, and reproducibility less mysterious
+- Docker gives the deployment vocabulary: image, container, build, run, port, mounted files
+- MLflow gives the ML workflow vocabulary: run, parameter, metric, artifact, checkpoint, model reload
+
+Resources and stopping points:
+
+- [MIT Missing Semester](https://missing.csail.mit.edu/)
+  - Read/run: [Course Overview + Introduction to the Shell](https://missing.csail.mit.edu/2026/course-shell/), [Command-line Environment](https://missing.csail.mit.edu/2026/command-line-environment/), [Version Control and Git](https://missing.csail.mit.edu/2026/version-control/), and [Packaging and Shipping Code](https://missing.csail.mit.edu/2026/shipping-code/).
+  - Focus on: `pwd`, `cd`, `ls`, `mkdir`, `cp`, `mv`, `rm`, `cat`, `head`, `tail`, `rg`/`grep`, running `python train.py`, `$PATH`, virtual environments, `git status`, `git diff`, `git add`, `git commit`, `git log`, and what an artifact is.
+  - Stop when: you can navigate a project folder, run a Python script from the terminal, inspect files, make a small Git commit, and explain why a virtual environment changes dependency resolution.
+  - Skip for now: heavy shell customization, dotfiles, terminal multiplexers, remote machines, TestPyPI publishing, GitHub Pages, Redis, and advanced packaging.
+
+- [Docker official workshop](https://docs.docker.com/get-started/workshop/)
+  - Read/run: the beginner path through containerizing a small app, building an image, and running a container.
+  - Focus on: image vs container, `Dockerfile`, build context, `docker build`, `docker run`, port mapping, logs, stopping/removing containers.
+  - Stop when: you can say "this image packages the app and dependencies" and run one container from an image you built.
+  - Skip for now: Docker Hub publishing, Compose databases, Kubernetes integration, security scanning, production hardening.
+
+- [MLflow Tracking quickstart](https://mlflow.org/docs/latest/ml/getting-started/quickstart/) and [MLflow Tracking concepts](https://mlflow.org/docs/latest/tracking)
+  - Read/run: quickstart Steps 1-6: set experiment, log params/metrics/model, inspect the run if the UI is available, and load the logged model for inference.
+  - Focus on: experiment, run, parameter, metric, artifact, model, local `mlruns` folder.
+  - Stop when: you understand that `python train.py` can create a run record with the model config, validation metrics, and saved files.
+  - Skip for now: remote tracking servers, database backend stores, model registry workflows, team permissions.
+
+- [Full Stack Deep Learning 2022](https://fullstackdeeplearning.com/course/2022/)
+  - Read/watch selectively: Lecture 2 "Development Infrastructure & Tooling" only as vocabulary before Project 1.
+  - Focus on: what tools surround model training in real projects.
+  - Stop when: you can name the basic system pieces around training: code, config, data, experiment tracking, artifact storage, testing, deployment.
+  - Skip for now: labs, W&B-specific implementation, annotation systems, monitoring, continual learning, team/project-management lectures.
+
+Do not do yet:
+
+- Kubernetes
+- Terraform
+- Prometheus/Grafana
+- full DataTalksClub MLOps Zoomcamp
+- cloud billing or managed deployment platforms
+
+#### 2. Project 1: Modern CNN System
+
+Do this:
+
+- build the Project 1 modern CNN tutorial
+- keep AlexNet as historical context or a weak baseline, not the main target by default
+- use a modern CNN design target that reflects Chapter 8: convolution blocks, ReLU, normalization, residual-style thinking, global/adaptive pooling, and a compact classification head
+- train on a real image dataset, not synthetic logits
+- write clean project modules, not one giant notebook
+- log metrics and save checkpoints
+- reload the best checkpoint for evaluation
+
+Why:
+
+- Chapter 8 makes CNN architecture choices design decisions, not memorized layer lists
+- real data forces data import, transforms, batching, labels, train/validation/test splits, and artifact handling
+- checkpoints and reloads turn the model into a reusable object instead of a temporary notebook state
+
+Required production-shaped habits:
+
+- `experiments.ipynb` stays readable
+- reusable logic goes into project files
+- configs control data/model/training choices
+- every major tensor handoff has a shape contract
+- every result has a baseline or ablation
+- metrics are written somewhere inspectable
+- the final model can be loaded without rerunning training
+
+Resources and stopping points:
+
+- [Project 1 tutorial](project_1_modern_cnn/TUTORIAL.md)
+  - Read/run: the project tutorial in order.
+  - Focus on: data import, image transforms, DataLoader batches, CNN blocks, training/eval loops, ablations, checkpoints, and reloadable inference.
+  - Stop when: the tutorial's final checkpoint and notes are complete.
+
+- [PyTorch Training a Classifier](https://docs.pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html)
+  - Read/run: load/normalize CIFAR-10, inspect classes, create DataLoaders, define a CNN, define loss, train, test.
+  - Focus on: how real images become `[batch, channels, height, width]` tensors and how the training loop consumes DataLoader batches.
+  - Stop when: CIFAR-10 data loading, `DataLoader`, logits, loss, optimizer step, and test accuracy feel mechanically connected.
+  - Skip for now: adapting the tutorial to many architectures or chasing accuracy.
+
+- [Torchvision transforms v2 getting started](https://docs.pytorch.org/vision/stable/auto_examples/transforms/plot_transforms_getting_started.html)
+  - Read/run: "The basics" and "I just want to do image classification."
+  - Focus on: `RandomResizedCrop`, `RandomHorizontalFlip`, `ToDtype`, `Normalize`, and why train transforms differ from validation/test transforms.
+  - Stop when: you can explain the exact tensor shape/range before and after transforms.
+  - Skip for now: object detection, segmentation, bounding boxes, masks, videos, keypoints.
+
+- [Torchvision model docs](https://docs.pytorch.org/vision/master/models.html) and [Torchvision ConvNeXt docs](https://docs.pytorch.org/vision/main/models/convnext.html)
+  - Read: classification model setup, pretrained weights idea, and the ConvNeXt Tiny builder.
+  - Focus on: model constructors, classifier head replacement, weight transforms, and the difference between architecture choice and training loop choice.
+  - Stop when: you can instantiate a model, inspect its final classifier, and explain whether Project 1 is training from scratch or fine-tuning.
+  - Skip for now: benchmarking the full model zoo, detection/segmentation models, quantization, export.
+
+- [Full Stack Deep Learning 2022](https://fullstackdeeplearning.com/course/2022/)
+  - Read/watch selectively during the project: Lecture 2 "Development Infrastructure & Tooling", Lecture 3 "Troubleshooting & Testing", and Lecture 4 "Data Management."
+  - Focus on: why serious ML work needs experiment records, failure analysis, data handling, and tests.
+  - Stop when: you have copied the relevant ideas into Project 1's project habits: config, logs, artifacts, sanity checks, and final notes.
+  - Skip for now: FSDL labs, deployment lecture, monitoring lecture, project showcase.
+
+#### 3. Immediately After Project 1: First Serving Wrapper
+
+Do this:
+
+- create a small inference script that loads the saved CNN checkpoint
+- preprocess one input image the same way training did
+- return class scores and predicted label
+- expose that inference path with FastAPI or BentoML
+- containerize the inference service with Docker
+
+Why:
+
+- inference separates "trained model" from "training loop"
+- FastAPI or BentoML creates a real service boundary: request in, prediction out
+- Docker makes the service portable enough to run outside the original notebook/project environment
+
+Stop when:
+
+- the service can start
+- one request returns a prediction
+- the model reload path is tested
+- the Docker image can run the service
+
+Resources and stopping points:
+
+- [FastAPI tutorial](https://fastapi.tiangolo.com/tutorial/)
+  - Read/run: [First Steps](https://fastapi.tiangolo.com/tutorial/first-steps/), [Request Body](https://fastapi.tiangolo.com/tutorial/body/), and [Request Files](https://fastapi.tiangolo.com/tutorial/request-files/).
+  - Focus on: `FastAPI()`, route functions, `POST`, JSON input/output, `UploadFile`, and returning a prediction dictionary.
+  - Stop when: you have `/health` and `/predict` endpoints and one request returns a class prediction from the saved Project 1 model.
+  - Skip for now: authentication, databases, background tasks, dependency injection, async architecture, deployment providers.
+
+- [BentoML Hello World](https://docs.bentoml.org/en/latest/get-started/hello-world.html) and [BentoML Services](https://docs.bentoml.org/en/latest/build-with-bentoml/services.html)
+  - Use only if BentoML feels clearer than raw FastAPI after Project 1.
+  - Read/run: define a `service.py`, expose one API method, run `bentoml serve`, call the endpoint locally.
+  - Focus on: model-serving object, API method, local server, request/response shape.
+  - Stop when: the local BentoML service returns one prediction.
+  - Skip for now: BentoCloud, scaling configuration, multiple services, deployment automation.
+
+- [Docker official workshop](https://docs.docker.com/get-started/workshop/)
+  - Revisit after the FastAPI or BentoML service exists.
+  - Read/run: the parts needed to write a `Dockerfile`, build an image, and run the service with a port mapping.
+  - Focus on: copying code into the image, installing dependencies, exposing a port, and starting the server process.
+  - Stop when: `docker run -p ...` starts the service and the prediction request still works.
+  - Skip for now: Compose, registries, Kubernetes, cloud deployment, security hardening.
+
+#### 4. Just Before Project 2: Light MLOps Preview
+
+Do this:
+
+- run the Kubernetes official basics tutorial: deploy, expose, scale, update
+- read DataTalksClub MLOps Zoomcamp Module 1 and Module 2 selectively
+- skim the deployment module only enough to recognize batch vs real-time serving
+
+Why:
+
+- Kubernetes only becomes meaningful after there is a containerized service to deploy
+- MLOps experiment tracking matters more once Project 1 has real runs to compare
+- deployment patterns are easier to understand after one model has already been served locally
+
+Resources and stopping points:
+
+- [Kubernetes official basics](https://kubernetes.io/docs/tutorials/kubernetes-basics/)
+  - Read/run: Create a cluster, Deploy an app, Explore your app, Expose your app publicly, Scale up your app, Update your app.
+  - Focus on: cluster, node, pod, deployment, service, scale, rollout, rollback, logs.
+  - Stop when: you can explain how a containerized app becomes a running service with multiple replicas.
+  - Skip for now: Helm, ingress controllers, persistent volumes, secrets, service meshes, autoscaling policy, managed cloud clusters.
+
+- [DataTalksClub MLOps Zoomcamp](https://datatalks.club/docs/courses/mlops-zoomcamp/) and [curriculum](https://datatalks.club/docs/courses/mlops-zoomcamp/curriculum/)
+  - Read selectively: Module 1 "Introduction" and Module 2 "Experiment Tracking & Model Management."
+  - Skim selectively: Module 4 "Model Deployment" only for batch vs online/web-service vs streaming vocabulary.
+  - Focus on: MLOps maturity, experiment tracking, model saving/loading, model deployment categories.
+  - Stop when: you can map Project 1 onto these words: training script, experiment run, model artifact, inference service, batch vs online prediction.
+  - Skip for now: Module 3 orchestration, Module 5 monitoring, Module 6 best practices, final project, AWS Kinesis/Lambda, Terraform, Prometheus/Grafana.
+
+- [DataTalksClub MLOps Zoomcamp GitHub repo](https://github.com/DataTalksClub/mlops-zoomcamp)
+  - Use it as the navigation source if the docs page points to code or videos.
+  - Focus on: `01-intro`, `02-experiment-tracking`, and only the deployment overview in `04-deployment`.
+  - Stop when: the repo layout makes sense.
+  - Skip for now: homework completion, certificate logistics, cohort deadlines, final project rubric.
+
+Do not do yet:
+
+- full Kubernetes operations
+- Terraform infrastructure
+- production monitoring stacks
+- cloud streaming systems
+- final MLOps capstone-style architecture
+
+### Carry-Forward Rules
+
+- Learn the production skill at the moment the ML project creates demand for it.
+- Prefer one short external module over one full course detour.
+- Keep D2L as the main algorithm spine.
+- Keep ops/devops as a parallel support lane, not a replacement path.
+- Do not productionize every D2L chapter.
+- Production-shape the projects, especially Project 1 and later.
 
 ## Appendix: Reviewed Resource Dump
 

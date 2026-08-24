@@ -1,0 +1,8 @@
+__pycache__/
+.ipynb_checkpoints/
+cloud_cv_runs/
+artifacts/
+*.pt
+*.pth
+*.png
+*.csv
