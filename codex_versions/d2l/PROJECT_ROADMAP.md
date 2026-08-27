@@ -783,7 +783,7 @@ Resources and stopping points:
   - Stop when: you can navigate a project folder, run a Python script from the terminal, inspect files, make a small Git commit, and explain why a virtual environment changes dependency resolution.
   - Skip for now: heavy shell customization, dotfiles, terminal multiplexers, remote machines, TestPyPI publishing, GitHub Pages, Redis, and advanced packaging.
 
-- [Docker official workshop](https://docs.docker.com/get-started/workshop/)
+- ✅ [Docker official workshop](https://docs.docker.com/get-started/workshop/)
   - Read/run: the beginner path through containerizing a small app, building an image, and running a container.
   - Focus on: image vs container, `Dockerfile`, build context, `docker build`, `docker run`, port mapping, logs, stopping/removing containers.
   - Stop when: you can say "this image packages the app and dependencies" and run one container from an image you built.
