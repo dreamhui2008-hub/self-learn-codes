@@ -789,7 +789,7 @@ Resources and stopping points:
   - Stop when: you can say "this image packages the app and dependencies" and run one container from an image you built.
   - Skip for now: Docker Hub publishing, Compose databases, Kubernetes integration, security scanning, production hardening.
 
-- Kaggle Pandas (https://www.kaggle.com/learn/pandas)
+- ✅ Kaggle Pandas (https://www.kaggle.com/learn/pandas)
   - Read/run: the full beginner course, focusing on actually manipulating datasets rather than memorizing pandas syntax.
   - Focus on: loading CSVs, inspecting a dataframe, selecting/filtering rows & columns, creating/transforming columns, summary statistics, groupby, sorting, combining data.
   - Stop when: you can take an unfamiliar CSV and independently answer "What is in this dataset, what do the columns mean, and how do I get the subset/summary I need?"
