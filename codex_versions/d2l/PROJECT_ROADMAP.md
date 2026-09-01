@@ -795,7 +795,7 @@ Resources and stopping points:
   - Stop when: you can take an unfamiliar CSV and independently answer "What is in this dataset, what do the columns mean, and how do I get the subset/summary I need?"
   - Skip for now: trying to memorize every pandas method or becoming an advanced dataframe wizard.
 
-- Kaggle Data Cleaning (https://www.kaggle.com/learn/data-cleaning)
+- ✅ Kaggle Data Cleaning (https://www.kaggle.com/learn/data-cleaning)
   - Read/run: the full beginner course, preferably by actually typing/running the examples rather than just reading them.
   - Focus on: missing values, inconsistent data, data types, duplicates, categorical values, scaling/normalization, and detecting obviously bad data.
   - Stop when: you can look at a dataset and systematically ask "Is this data usable, and if not, what do I need to fix before training?"
@@ -818,7 +818,7 @@ Resources and stopping points:
   - Skip for now: spending significant time re-learning algorithms you already understand from D2L; treat those sections as review.
   - Optional: run the Colab exercises when a topic exposes a gap in your understanding.
 
-- [MLflow Tracking quickstart](https://mlflow.org/docs/latest/ml/getting-started/quickstart/) and [MLflow Tracking concepts](https://mlflow.org/docs/latest/tracking)
+- ✅ [MLflow Tracking quickstart](https://mlflow.org/docs/latest/ml/getting-started/quickstart/) and [MLflow Tracking concepts](https://mlflow.org/docs/latest/tracking)
   - Read/run: quickstart Steps 1-6: set experiment, log params/metrics/model, inspect the run if the UI is available, and load the logged model for inference.
   - Focus on: experiment, run, parameter, metric, artifact, model, local `mlruns` folder.
   - Stop when: you understand that `python train.py` can create a run record with the model config, validation metrics, and saved files.
