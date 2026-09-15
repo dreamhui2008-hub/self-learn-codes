@@ -1,0 +1,15 @@
+# Local Python environment
+.venv/
+
+# Python caches and local build metadata
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter's per-user checkpoint copies
+.ipynb_checkpoints/
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

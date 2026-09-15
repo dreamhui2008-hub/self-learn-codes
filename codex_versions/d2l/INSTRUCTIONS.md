@@ -1185,6 +1185,7 @@ After generating notebooks, validate:
 
 - every `.ipynb` parses as JSON
 - `nbformat` is present
+- notebooks using `nbformat_minor: 5` give every cell a unique `id`
 - all code cells have no saved outputs
 - all code cells have `execution_count` set to null
 - all code cells parse as Python with `ast.parse`
@@ -1209,6 +1210,10 @@ If local packages are missing and execution cannot be tested, report that explic
 - For convolution/CNN chapters, keep image examples tiny and offline by default: use synthetic image tensors, hand-inspectable kernels, and shape checks rather than `torchvision` dataset downloads unless the user explicitly requests real data.
 - When introducing CNNs, explicitly distinguish mathematical convolution from the cross-correlation operation implemented by common deep learning libraries such as PyTorch `Conv2d`.
 - For LeNet or other CNN training examples, use tiny synthetic batches for mechanics unless the user approves real dataset downloads or longer execution.
+- For sequence and language-model chapters, prefer synthetic time series and original inline text corpora so tokenization, vocabulary, partitioning, training, and decoding remain offline and inspectable.
+- State sequence tensor axes explicitly wherever conventions can differ: batch, time, feature or vocabulary, hidden size, recurrent layer, and direction.
+- For recurrent training, distinguish carried state values from their computation history; demonstrate when state detachment truncates backpropagation through time and when gradient clipping only rescales an already-computed gradient.
+- When a notebook generator contains code-cell source with string escape sequences such as `\n`, escape them for both layers: the generator source and the generated notebook code. Validate every generated code cell with `ast.parse` to catch malformed nested strings.
 
 ### 6. File organization rules
 

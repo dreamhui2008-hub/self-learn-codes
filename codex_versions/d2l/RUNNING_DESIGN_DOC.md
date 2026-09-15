@@ -1,6 +1,6 @@
 ﻿# D2L Notebook Generation Running Design Doc
 
-Last updated: 2026-08-18
+Last updated: 2026-09-15
 
 ## Purpose
 
@@ -14,6 +14,9 @@ Root folder:
 
 - `d2l/INSTRUCTIONS.md`: canonical generation instructions and syllabus
 - `d2l/RUNNING_DESIGN_DOC.md`: this progress and workflow journal
+- `d2l/.gitignore`: ignores the local environment, notebook checkpoints, and tool caches
+- `d2l/.venv/`: ignored Python 3.14 virtual environment for notebook generation and execution
+- `d2l/requirements.txt`: exact frozen dependency reference, including the CPU-only PyTorch wheel index
 - `d2l/Chapter 2 - Preliminaries/`: completed Chapter 2 notebooks
 - `d2l/Chapter 3 - Linear Neural Networks for Regression/`: completed Chapter 3 notebooks
 - `d2l/Chapter 4 - Linear Neural Networks for Classification/`: completed Chapter 4 notebooks
@@ -21,6 +24,7 @@ Root folder:
 - `d2l/Chapter 6 - Builders' Guide/`: completed Chapter 6 notebooks
 - `d2l/Chapter 7 - Convolutional Neural Networks/`: completed Chapter 7 notebooks
 - `d2l/Chapter 8 - Modern Convolutional Neural Networks/`: completed Chapter 8 notebooks
+- `d2l/Chapter 9 - Recurrent Neural Networks/`: completed Chapter 9 notebooks
 - `d2l/generation_scripts/`: persistent Python scripts used to generate or repair notebooks
 - `d2l/generation_scripts/generate_chapter_03.py`: persistent generator for Chapter 3
 - `d2l/generation_scripts/generate_chapter_04.py`: persistent generator for Chapter 4
@@ -28,6 +32,7 @@ Root folder:
 - `d2l/generation_scripts/generate_chapter_06.py`: persistent generator for Chapter 6
 - `d2l/generation_scripts/generate_chapter_07.py`: persistent generator for Chapter 7
 - `d2l/generation_scripts/generate_chapter_08.py`: persistent generator for Chapter 8
+- `d2l/generation_scripts/generate_chapter_09.py`: persistent generator for Chapter 9
 
 ## Completed Work
 
@@ -288,6 +293,53 @@ Implementation notes:
 - AlexNet, VGG, NiN, GoogLeNet, BatchNorm, ResNet/ResNeXt, DenseNet, and AnyNet/RegNet-style design are taught through inspectable PyTorch modules and architecture contracts.
 - Full dataset training, accuracy curves, architecture search, and hardware benchmarking remain deferred.
 
+### Chapter 9 - Recurrent Neural Networks
+
+Completed as separate notebooks:
+
+- `Chapter 9.1 - Working with Sequences.ipynb`
+- `Chapter 9.2 - Converting Raw Text into Sequence Data.ipynb`
+- `Chapter 9.3 - Language Models.ipynb`
+- `Chapter 9.4 - Recurrent Neural Networks.ipynb`
+- `Chapter 9.5 - Recurrent Neural Network Implementation from Scratch.ipynb`
+- `Chapter 9.6 - Concise Implementation of Recurrent Neural Networks.ipynb`
+- `Chapter 9.7 - Backpropagation Through Time.ipynb`
+
+Generation script kept:
+
+- `d2l/generation_scripts/generate_chapter_09.py`
+
+Validation performed:
+
+- generator script compiles with `python3 -m py_compile`
+- all seven notebooks parse as JSON
+- all notebooks use `nbformat: 4` and `nbformat_minor: 5`
+- every cell has a deterministic, unique cell ID
+- code cells have `execution_count: null`
+- code cells have `outputs: []`
+- every code cell parses with Python `ast.parse`
+- required Chapter 6+ headings are present: usage, done criteria, problem statement, breakage demo, and checkpoint
+- maximum nonblank code-cell length was inspected
+- longest code cell: 28 nonblank lines
+- generated source and notebooks contain only ASCII characters
+- files are stored under `d2l/Chapter 9 - Recurrent Neural Networks/`
+
+Execution validation:
+
+- All seven notebooks executed successfully from top to bottom in memory with Python 3.14.4 and PyTorch 2.14.0+cpu.
+- Execution outputs were not written back to the checked-in notebooks.
+
+Implementation notes:
+
+- Chapter 9 uses synthetic time series and an original inline text corpus, so no dataset download or network access is required.
+- Sequence contracts explicitly name batch, time, vocabulary, feature, hidden-size, and recurrent-layer axes.
+- Both random and sequential corpus partitioning are implemented with next-token alignment assertions.
+- The scratch RNN exposes registered parameters, manual recurrent updates, state initialization, target flattening order, gradient clipping, truncated state detachment, and greedy decoding.
+- The concise implementation maps the same mechanics to `nn.Embedding`, `nn.RNN`, and `nn.Linear`.
+- Backpropagation through time is derived with a scalar recurrent system before full and truncated gradients are compared.
+- Deliberate failure sections cover off-by-one targets, missing unknown-token handling, copy-task labels, hidden-state shape errors, attached-state reuse, missing layer axes, and exploding gradients.
+- Full-corpus training, serious perplexity comparisons, sampling studies, and large recurrent models remain deferred.
+
 ## Roadblocks And Resolutions
 
 ### Windows command-length limit
@@ -330,6 +382,19 @@ Resolution:
 - For markdown-only updates, use a small PowerShell or Python file edit and immediately verify the modified content.
 - For source code edits, prefer `apply_patch`; if the same sandbox failure blocks it, document the failure and use the smallest safe targeted edit available.
 - The same markdown `apply_patch` failure repeated during the Chapter 7 instruction update; a targeted PowerShell edit plus `Select-String` verification worked.
+
+### Nested string escaping in notebook generators
+
+Problem:
+
+- A Chapter 9 generator code-cell string contained an inner newline escape intended for the generated Python source.
+- Python consumed the escape while running the generator, leaving a literal line break inside a quoted string in the notebook code cell.
+- The notebook remained valid JSON, but the generated code cell failed `ast.parse`.
+
+Resolution:
+
+- Escape string-control characters for both interpretation layers, for example use `\\n` in the generator when the generated code must contain `\n`.
+- Regenerate the notebooks and parse every individual code cell with `ast.parse`; JSON validation alone is insufficient.
 
 
 ### Chapter 3 generator fallback details
@@ -399,7 +464,7 @@ Resolution:
 
 - Chapter 7 used tiny synthetic tensors, manual kernels, and shape checks for convolution, padding, stride, channels, pooling, and LeNet.
 - `INSTRUCTIONS.md` was updated to keep CNN chapters offline by default and to explain cross-correlation terminology explicitly.
-### Missing local dependencies
+### Local dependency environment
 
 Problem:
 
@@ -408,9 +473,11 @@ Problem:
 
 Resolution:
 
-- Continue to validate JSON, notebook metadata, no saved outputs, no execution counts, and code syntax.
-- Report missing dependencies explicitly.
-- Do not install dependencies unless the user asks or approves.
+- With user approval, created the ignored `d2l/.venv/` using Python 3.14.4.
+- Installed CPU-only PyTorch and torchvision, NumPy, pandas, Matplotlib, JupyterLab, the notebook execution stack, common scientific/data helpers, and the syllabus-specific GPyTorch package.
+- Froze all 118 installed distributions in `d2l/requirements.txt`; the file includes the PyTorch CPU wheel index for reproducibility.
+- Verified every frozen pin against the installed environment and smoke-tested the principal imports.
+- Jupyter kernels need permission to open local loopback sockets in the constrained agent sandbox; this does not affect normal local Jupyter use.
 
 ## Current Notebook Generation Pattern
 
@@ -451,34 +518,34 @@ Intensity rule:
 
 Next chapter to generate:
 
-- `Chapter 9 - Recurrent Neural Networks`
+- `Chapter 10 - Modern Recurrent Neural Networks`
 
 Expected subchapter notebooks:
 
-- `Chapter 9.1 - Working with Sequences.ipynb`
-- `Chapter 9.2 - Converting Raw Text into Sequence Data.ipynb`
-- `Chapter 9.3 - Language Models.ipynb`
-- `Chapter 9.4 - Recurrent Neural Networks.ipynb`
-- `Chapter 9.5 - Recurrent Neural Network Implementation from Scratch.ipynb`
-- `Chapter 9.6 - Concise Implementation of Recurrent Neural Networks.ipynb`
-- `Chapter 9.7 - Backpropagation Through Time.ipynb`
+- `Chapter 10.1 - Long Short-Term Memory (LSTM).ipynb`
+- `Chapter 10.2 - Gated Recurrent Units (GRU).ipynb`
+- `Chapter 10.3 - Deep Recurrent Neural Networks.ipynb`
+- `Chapter 10.4 - Bidirectional Recurrent Neural Networks.ipynb`
+- `Chapter 10.5 - Machine Translation and the Dataset.ipynb`
+- `Chapter 10.6 - The Encoder-Decoder Architecture.ipynb`
+- `Chapter 10.7 - Sequence-to-Sequence Learning for Machine Translation.ipynb`
+- `Chapter 10.8 - Beam Search.ipynb`
 
-Recommended first step for Chapter 9:
+Recommended first step for Chapter 10:
 
-- create `d2l/generation_scripts/generate_chapter_09.py`
-- generate notebooks into `d2l/Chapter 9 - Recurrent Neural Networks/`
+- create `d2l/generation_scripts/generate_chapter_10.py`
+- generate notebooks into `d2l/Chapter 10 - Modern Recurrent Neural Networks/`
 - keep the generator script after successful generation
 - validate JSON, no outputs, null execution counts, Python syntax, and maximum code-cell lengths
 - inspect longer cells for a single coherent purpose, assertions, and clear failure behavior
-- keep examples offline and inspectable unless real text dataset downloads are explicitly approved
-- use tiny synthetic or inline text corpora for tokenization, vocabulary, sequence partitioning, and language-model drills
-- make sequence axis contracts explicit: batch, time, vocabulary size, hidden size, and recurrent state shape
-- include deliberate failure cells for off-by-one labels, hidden-state shape mismatch, detached-state mistakes, and exploding gradients where useful
-- defer full corpus training, serious perplexity curves, and large model comparisons unless explicitly approved
+- keep machine-translation examples offline with a tiny inline bilingual corpus unless real downloads are explicitly approved
+- connect LSTM and GRU gates directly to Chapter 9's vanishing-gradient and recurrent-state mechanics
+- make layer, direction, batch, time, hidden, source-length, and target-length contracts explicit
+- include deliberate failures for gate-shape mismatches, bidirectional-state assumptions, padding leakage, missing target shifts, and beam bookkeeping
+- defer full translation training, large vocabulary studies, and production BLEU comparisons unless explicitly approved
 - update this document with validation results and any new roadblocks
 
 ## Open Decisions
 
-- Whether to install notebook execution dependencies locally for stronger validation.
 - Whether to retroactively recreate a reusable Chapter 2 generator script from the generated notebooks for reference.
 - Whether future chapters should be generated one subchapter at a time or all subchapters per chapter after user approval.
